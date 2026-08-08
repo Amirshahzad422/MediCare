@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "144380044660",
+    "project_id": "medicare-cc907",
+    "storage_bucket": "medicare-cc907.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:144380044660:android:e398adc2fdd31f523b7821",
+        "android_client_info": {
+          "package_name": "com.example.medi_care"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCe4qi2gIToZm_A-PdymJBgxHvqrbXDD2s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

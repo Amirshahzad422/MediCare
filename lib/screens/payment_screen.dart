@@ -1,0 +1,336 @@
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../models/doctor_model.dart';
+import '../styles/colors.dart';
+import '../styles/typography.dart';
+
+class PaymentScreen extends StatefulWidget {
+  const PaymentScreen({super.key});
+
+  @override
+  State<PaymentScreen> createState() => _PaymentScreenState();
+}
+
+class _PaymentScreenState extends State<PaymentScreen> {
+  final _promoController = TextEditingController();
+  double _discount = 0.0;
+  bool _isPromoApplied = false;
+  bool _isProcessing = false;
+  String _selectedMethod = 'Card';
+
+  @override
+  void dispose() {
+    _promoController.dispose();
+    super.dispose();
+  }
+
+  void _applyPromo() {
+    if (_promoController.text.trim().toUpperCase() == 'MEDICARE10') {
+      setState(() {
+        _discount = 10.0;
+        _isPromoApplied = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Promo Code Applied Successfully!')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid Promo Code')),
+      );
+    }
+  }
+
+  void _processPayment(DoctorModel doctor, DateTime date, String slot, String type, double total) async {
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('User not logged in');
+
+      await FirebaseFirestore.instance.collection('appointments').add({
+        'patientId': user.uid,
+        'patientName': user.displayName ?? 'Patient',
+        'doctorName': doctor.name,
+        'specialty': doctor.specialty,
+        'doctorPhoto': doctor.photo,
+        'date': '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
+        'slot': slot,
+        'type': type,
+        'amount': total,
+        'status': 'upcoming',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green),
+              SizedBox(width: 8),
+              Text('Success'),
+            ],
+          ),
+          content: const Text('Your appointment has been booked successfully!'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pushNamedAndRemoveUntil(context, '/dashboard', (route) => false);
+              },
+              child: const Text('Go to Dashboard'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Payment Failed: ${e.toString()}')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final routeArgs = ModalRoute.of(context)?.settings.arguments;
+
+    if (routeArgs == null || routeArgs is! Map<String, dynamic>) {
+      return Scaffold(
+        backgroundColor: AppColors.white,
+        appBar: AppBar(
+          backgroundColor: AppColors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.darkNavy),
+            onPressed: () => Navigator.pushReplacementNamed(context, '/dashboard'),
+          ),
+          title: Text('Payment Error', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
+          centerTitle: true,
+        ),
+        body: Center(
+          child: Text(
+            'No booking data found. Please select a slot again.',
+            style: AppTypography.bodyLarge,
+          ),
+        ),
+      );
+    }
+
+    final args = routeArgs;
+    final doctor = args['doctor'] as DoctorModel;
+    final date = args['date'] as DateTime;
+    final slot = args['slot'] as String;
+    final type = args['type'] as String;
+
+    final subtotal = doctor.fee;
+    const bookingFee = 5.0;
+    final total = subtotal + bookingFee - _discount;
+
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      appBar: AppBar(
+        backgroundColor: AppColors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.darkNavy),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text('Payment Details', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.iceBlue.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(doctor.name, style: AppTypography.titleLarge.copyWith(fontSize: 18)),
+                          Text(doctor.specialty, style: AppTypography.bodyMedium),
+                          const Divider(height: 24),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Date & Time', style: AppTypography.bodyMedium),
+                              Text(
+                                '${date.day}/${date.month}/${date.year} at $slot',
+                                style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Type', style: AppTypography.bodyMedium),
+                              Text(
+                                type,
+                                style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    Text('Payment Method', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _selectedMethod = 'Card'),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              decoration: BoxDecoration(
+                                color: _selectedMethod == 'Card' ? AppColors.deepBlue : AppColors.iceBlue.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: _selectedMethod == 'Card' ? AppColors.deepBlue : AppColors.lightBlue.withValues(alpha: 0.3)),
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(Icons.credit_card, color: _selectedMethod == 'Card' ? AppColors.white : AppColors.deepBlue),
+                                  const SizedBox(height: 8),
+                                  Text('Credit/Debit', style: AppTypography.bodyMedium.copyWith(color: _selectedMethod == 'Card' ? AppColors.white : AppColors.deepBlue, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _selectedMethod = 'Wallet'),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              decoration: BoxDecoration(
+                                color: _selectedMethod == 'Wallet' ? AppColors.deepBlue : AppColors.iceBlue.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: _selectedMethod == 'Wallet' ? AppColors.deepBlue : AppColors.lightBlue.withValues(alpha: 0.3)),
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(Icons.account_balance_wallet, color: _selectedMethod == 'Wallet' ? AppColors.white : AppColors.deepBlue),
+                                  const SizedBox(height: 8),
+                                  Text('JazzCash / EP', style: AppTypography.bodyMedium.copyWith(color: _selectedMethod == 'Wallet' ? AppColors.white : AppColors.deepBlue, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 28),
+                    Text('Promo Code', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _promoController,
+                            style: AppTypography.bodyLarge,
+                            decoration: const InputDecoration(
+                              hintText: 'Enter code (e.g. MEDICARE10)',
+                              hintStyle: TextStyle(color: AppColors.lightBlue),
+                              border: OutlineInputBorder(),
+                              enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.lightBlue)),
+                              focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.deepBlue)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          onPressed: _isPromoApplied ? null : _applyPromo,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                          ),
+                          child: const Text('Apply'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 28),
+                    Text('Price Summary', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Consultation Fee', style: AppTypography.bodyLarge),
+                        Text('\$${subtotal.toStringAsFixed(2)}', style: AppTypography.bodyLarge),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Booking Service Fee', style: AppTypography.bodyLarge),
+                        Text('\$5.00', style: AppTypography.bodyLarge),
+                      ],
+                    ),
+                    if (_discount > 0) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Promo Discount', style: AppTypography.bodyLarge.copyWith(color: Colors.green)),
+                          Text('-\$${_discount.toStringAsFixed(2)}', style: AppTypography.bodyLarge.copyWith(color: Colors.green)),
+                        ],
+                      ),
+                    ],
+                    const Divider(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Total Amount', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
+                        Text('\$${total.toStringAsFixed(2)}', style: AppTypography.titleLarge.copyWith(fontSize: 20, color: AppColors.deepBlue)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: ElevatedButton(
+                onPressed: _isProcessing ? null : () => _processPayment(doctor, date, slot, type, total),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.deepBlue,
+                  minimumSize: const Size(double.infinity, 56),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: _isProcessing
+                    ? const CircularProgressIndicator(color: AppColors.white)
+                    : Text('Pay Now', style: AppTypography.buttonText),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
