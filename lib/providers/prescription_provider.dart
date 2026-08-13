@@ -12,10 +12,38 @@ final prescriptionsStreamProvider = StreamProvider<List<Map<String, dynamic>>>((
       .where('patientId', isEqualTo: user.uid)
       .snapshots()
       .map((snapshot) {
-    return snapshot.docs.map((doc) {
+    final list = snapshot.docs.map((doc) {
       final data = doc.data();
       data['id'] = doc.id;
       return data;
     }).toList();
+    list.sort((a, b) {
+      final aAt = (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime(1900);
+      final bAt = (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime(1900);
+      return bAt.compareTo(aAt);
+    });
+    return list;
+  });
+});
+
+/// Prescriptions issued by one doctor (Doctor Dashboard → Records tab).
+final prescriptionsForDoctorProvider =
+    StreamProvider.family<List<Map<String, dynamic>>, String>((ref, doctorName) {
+  return FirebaseFirestore.instance
+      .collection('prescriptions')
+      .where('doctorName', isEqualTo: doctorName)
+      .snapshots()
+      .map((snapshot) {
+    final list = snapshot.docs.map((doc) {
+      final data = doc.data();
+      data['id'] = doc.id;
+      return data;
+    }).toList();
+    list.sort((a, b) {
+      final aAt = (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime(1900);
+      final bAt = (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime(1900);
+      return bAt.compareTo(aAt);
+    });
+    return list;
   });
 });

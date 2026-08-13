@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
 import '../models/user_model.dart';
 
@@ -14,13 +15,18 @@ final userProfileProvider = FutureProvider<UserModel?>((ref) async {
   final user = authState.value;
   if (user == null) return null;
 
-  final authService = ref.read(authServiceProvider);
-  final role = await authService.getUserRole(user.uid);
+  // Fetch the latest user data from Firestore to get the registered name
+  final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+  
+  if (doc.exists) {
+    return UserModel.fromMap(doc.data()!, user.uid);
+  }
 
+  // Fallback if document doesn't exist yet
   return UserModel(
     uid: user.uid,
     name: user.displayName ?? '',
     email: user.email ?? '',
-    role: role,
+    role: 1,
   );
 });

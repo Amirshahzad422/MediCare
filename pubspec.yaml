@@ -30,7 +30,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
+  intl: ^0.19.0
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
@@ -47,7 +47,13 @@ dependencies:
   # State Management (Riverpod)
   flutter_riverpod: any
 
-  firedart: any
+  # Photo upload (Profile pictures)
+  image_picker: ^1.1.2
+  firebase_storage: any
+
+  # PDF generation & printing
+  pdf: ^3.11.1
+  printing: ^5.13.1
 
   # Premium Typography & Fonts
   google_fonts: any
@@ -65,7 +71,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 # For information on the generic Dart part of this file, see the
-# following page: https://dart.dev/tools/pub/pubspec
+# following page: https://dart.dev/tools/pub/pub/pubspec
 
 # The following section is specific to Flutter packages.
 flutter:

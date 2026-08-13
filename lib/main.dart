@@ -4,15 +4,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'firebase_options.dart';
 import 'styles/colors.dart';
 import 'styles/typography.dart';
+import 'screens/splash_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
+import 'screens/otp_screen.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/doctors_screen.dart';
 import 'screens/doctor_details_screen.dart';
 import 'screens/booking_screen.dart';
 import 'screens/payment_screen.dart';
-import 'screens/appointments_screen.dart';
 import 'screens/video_call_screen.dart';
+import 'screens/chat_screen.dart';
 import 'screens/prescriptions_screen.dart';
+import 'screens/pharmacy_screen.dart';
+import 'screens/cart_screen.dart';
+import 'screens/orders_screen.dart';
+import 'screens/profile_screen.dart';
+import 'screens/doctor_dashboard_screen.dart';
+import 'screens/about_screen.dart';
+import 'screens/contact_screen.dart';
+import 'screens/faq_screen.dart';
+import 'screens/blog_screen.dart';
+import 'screens/not_found_screen.dart';
+import 'screens/doctor_onboarding_screen.dart';
+import 'screens/notification_screen.dart';
+import 'screens/review_screen.dart';
+import 'screens/patient_onboarding_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,14 +44,22 @@ void main() async {
   );
 }
 
-class MediCareApp extends StatelessWidget {
+class MediCareApp extends ConsumerStatefulWidget {
   const MediCareApp({super.key});
+
+  @override
+  ConsumerState<MediCareApp> createState() => _MediCareAppState();
+}
+
+class _MediCareAppState extends ConsumerState<MediCareApp> {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'MediCare',
       debugShowCheckedModeBanner: false,
+      navigatorKey: _navigatorKey,
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
@@ -74,23 +100,55 @@ class MediCareApp extends StatelessWidget {
             textStyle: AppTypography.bodyMedium,
           ),
         ),
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+            TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
+            TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.fuchsia: FadeForwardsPageTransitionsBuilder(),
+          },
+        ),
+        snackBarTheme: const SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+        ),
       ),
-      initialRoute: '/login',
+      initialRoute: '/',
       routes: {
+        '/': (context) => const SplashScreen(),
+        '/onboarding': (context) => const OnboardingScreen(),
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
+        '/otp': (context) => const OtpScreen(),
+        '/doctor-onboarding': (context) => const DoctorOnboardingScreen(),
         '/dashboard': (context) => const DashboardScreen(),
+        '/doctors': (context) => const DoctorsScreen(),
         '/doctor-details': (context) => const DoctorDetailsScreen(),
         '/booking': (context) => const BookingScreen(),
         '/payment': (context) => const PaymentScreen(),
-        '/appointments': (context) => const AppointmentsScreen(),
         '/video-call': (context) => const VideoCallScreen(),
+        '/chat': (context) => const ChatScreen(),
         '/prescriptions': (context) => const PrescriptionsScreen(),
-        '/pharmacy': (context) => const Scaffold(
-          body: Center(
-            child: Text('Pharmacy Store (Coming Soon!)'),
-          ),
-        ),
+        '/pharmacy': (context) => const PharmacyScreen(),
+        '/cart': (context) => const CartScreen(),
+        '/orders': (context) => const OrdersScreen(),
+        '/profile': (context) => const ProfileScreen(),
+        '/doctor-dashboard': (context) => const DoctorDashboardScreen(),
+        '/about': (context) => const AboutScreen(),
+        '/contact': (context) => const ContactScreen(),
+        '/faq': (context) => const FaqScreen(),
+        '/blog': (context) => const BlogScreen(),
+        '/notifications': (context) => const NotificationScreen(),
+        '/reviews': (context) => const ReviewScreen(),
+        '/patient-onboarding': (context) => const PatientOnboardingScreen(),
+        '/not-found': (context) => const NotFoundScreen(),
+      },
+      onUnknownRoute: (settings) {
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (context) => const NotFoundScreen(),
+        );
       },
     );
   }

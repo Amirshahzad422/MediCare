@@ -53,7 +53,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Registration Successful!')),
       );
-      Navigator.pushReplacementNamed(context, '/login');
+      
+      // Skip OTP for doctors (Role 2) and go to dashboard/onboarding
+      if (_selectedRole == 2) {
+        Navigator.pushReplacementNamed(context, '/dashboard');
+      } else {
+        Navigator.pushReplacementNamed(context, '/otp');
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Registration Failed. Please try again.')),
@@ -119,15 +125,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               borderSide: const BorderSide(color: AppColors.deepBlue, width: 2),
                             ),
                           ),
-validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your name';
-                      }
-                      if (!RegExp(r"^[a-zA-Z\s]+$").hasMatch(value)) {
-                        return 'Name can only contain letters and spaces';
-                      }
-                      return null;
-                    },
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your name';
+                            }
+                            if (!RegExp(r"^[a-zA-Z\s]+$").hasMatch(value)) {
+                              return 'Name can only contain letters and spaces';
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 24),
                         Text(

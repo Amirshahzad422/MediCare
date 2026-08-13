@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/doctor_model.dart';
 import '../providers/appointments_provider.dart';
+import '../components/slot_picker.dart' hide formatDateKey;
 import '../styles/colors.dart';
 import '../styles/typography.dart';
+import 'package:intl/intl.dart';
 
 class BookingScreen extends ConsumerStatefulWidget {
   const BookingScreen({super.key});
@@ -19,21 +21,41 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
 
   final List<String> _consultationTypes = ['Video Call', 'In-App Chat', 'In-Person'];
 
-  List<DateTime> _generateNextSevenDays() {
-    return List.generate(7, (index) => DateTime.now().add(Duration(days: index)));
-  }
+  List<String> _generateSlots(DoctorModel doctor) {
+    final List<String> slots = [];
+    final now = DateTime.now();
+    final duration = doctor.consultationDuration;
+    int startHour = doctor.businessStartHour;
+    int endHour = doctor.businessEndHour;
 
-  String _getWeekdayName(int weekday) {
-    switch (weekday) {
-      case 1: return 'Mon';
-      case 2: return 'Tue';
-      case 3: return 'Wed';
-      case 4: return 'Thu';
-      case 5: return 'Fri';
-      case 6: return 'Sat';
-      case 7: return 'Sun';
-      default: return '';
+    if (_selectedDate.year == now.year &&
+        _selectedDate.month == now.month &&
+        _selectedDate.day == now.day) {
+      final currentHour = now.hour;
+      final currentMinute = now.minute;
+      final earliestStart = currentHour + (currentMinute > 0 ? 1 : 0);
+      if (earliestStart > startHour) {
+        startHour = earliestStart;
+      }
+      if (startHour >= endHour) {
+        return slots;
+      }
     }
+
+    final startMinutes = startHour * 60;
+    final endMinutes = endHour * 60;
+
+    for (int hour = startHour; hour < endHour; hour++) {
+      for (int minute = 0; minute < 60; minute += duration) {
+        final slotStart = hour * 60 + minute;
+        final slotEnd = slotStart + duration;
+        if (slotStart >= startMinutes && slotEnd <= endMinutes) {
+          final time = DateTime(2024, 1, 1, hour, minute);
+          slots.add(DateFormat('hh:mm a').format(time));
+        }
+      }
+    }
+    return slots;
   }
 
   @override
@@ -63,10 +85,10 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
     }
 
     final doctor = args;
-    final dates = _generateNextSevenDays();
-
-    final dateStr = '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
-    final bookedSlotsAsync = ref.watch(bookedSlotsProvider('${doctor.name}_$dateStr'));
+    final String dayName = DateFormat('EEEE').format(_selectedDate);
+    final bool isAvailableDay = doctor.availableDays.contains(dayName);
+    final dateStr = formatDateKey(_selectedDate);
+    final bookedSlotsAsync = ref.watch(bookedSlotsProvider('${doctor.id}_$dateStr'));
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -89,196 +111,230 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _doctorBrief(doctor),
+                    const SizedBox(height: 24),
                     Text('Select Date', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
                     const SizedBox(height: 12),
-                    SizedBox(
-                      height: 80,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: dates.length,
-                        separatorBuilder: (context, index) => const SizedBox(width: 12),
-                        itemBuilder: (context, index) {
-                          final date = dates[index];
-                          final isSelected = date.day == _selectedDate.day &&
-                              date.month == _selectedDate.month &&
-                              date.year == _selectedDate.year;
-
-                          return GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _selectedDate = date;
-                                _selectedTimeSlot = null;
-                              });
-                            },
-                            child: Container(
-                              width: 60,
-                              decoration: BoxDecoration(
-                                color: isSelected ? AppColors.deepBlue : AppColors.iceBlue.withValues(alpha: 0.3),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isSelected ? AppColors.deepBlue : AppColors.lightBlue.withValues(alpha: 0.2),
-                                ),
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    _getWeekdayName(date.weekday),
-                                    style: AppTypography.bodyMedium.copyWith(
-                                      color: isSelected ? AppColors.white : AppColors.lightBlue,
-                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    date.day.toString(),
-                                    style: AppTypography.titleLarge.copyWith(
-                                      fontSize: 18,
-                                      color: isSelected ? AppColors.white : AppColors.darkNavy,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                    DatePickerRow(
+                      selectedDate: _selectedDate,
+                      onSelect: (date) {
+                        setState(() {
+                          _selectedDate = date;
+                          _selectedTimeSlot = null;
+                        });
+                      },
                     ),
                     const SizedBox(height: 28),
-                    Text('Available Time Slots', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
-                    const SizedBox(height: 12),
-                    bookedSlotsAsync.when(
-                      data: (bookedSlots) {
-                        final availableSlots = doctor.slots
-                            .where((slot) => !bookedSlots.contains(slot))
-                            .toList();
-                        return GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            crossAxisSpacing: 10,
-                            mainAxisSpacing: 10,
-                            childAspectRatio: 2.5,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Available Time Slots',
+                          style: AppTypography.titleLarge.copyWith(fontSize: 18),
+                        ),
+                        Text(
+                          '${doctor.consultationDuration} min',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.mediumBlue,
+                            fontWeight: FontWeight.bold,
                           ),
-                          itemCount: availableSlots.length,
-                          itemBuilder: (context, index) {
-                            final slot = availableSlots[index];
-                            final isSelected = _selectedTimeSlot == slot;
-
-                            return GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _selectedTimeSlot = slot;
-                                });
-                              },
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? AppColors.deepBlue
-                                      : AppColors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? AppColors.deepBlue
-                                        : AppColors.lightBlue.withValues(alpha: 0.5),
-                                  ),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  slot,
-                                  style: AppTypography.bodyMedium.copyWith(
-                                    color: isSelected
-                                        ? AppColors.white
-                                        : AppColors.deepBlue,
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                      loading: () => const Center(
-                        child: CircularProgressIndicator(color: AppColors.deepBlue),
-                      ),
-                      error: (err, stack) => const Center(
-                        child: Text('Error loading slots'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Business hours: ${_formatHour(doctor.businessStartHour)} - ${_formatHour(doctor.businessEndHour)}',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.mediumBlue,
+                        fontSize: 12,
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    if (!isAvailableDay)
+                      _unavailableState('Doctor is not available on $dayName')
+                    else
+                      bookedSlotsAsync.when(
+                        data: (bookedSlots) {
+                          final allSlots = _generateSlots(doctor);
+                          final availableSlots = allSlots
+                              .where((slot) => !bookedSlots.contains(slot))
+                              .toList();
+
+                          if (availableSlots.isEmpty) {
+                            return _unavailableState('No slots available for this day.');
+                          }
+
+                          return SlotGrid(
+                            slots: availableSlots,
+                            selectedSlot: _selectedTimeSlot,
+                            onSelect: (slot) {
+                              setState(() {
+                                _selectedTimeSlot = slot;
+                              });
+                            },
+                          );
+                        },
+                        loading: () => const Center(
+                          child: CircularProgressIndicator(color: AppColors.deepBlue),
+                        ),
+                        error: (err, stack) => const Center(
+                          child: Text('Error loading slots'),
+                        ),
+                      ),
                     const SizedBox(height: 28),
                     Text('Consultation Type', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
                     const SizedBox(height: 12),
-                    Row(
-                      children: _consultationTypes.map((type) {
-                        final isSelected = _selectedConsultationType == type;
-                        return Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _selectedConsultationType = type;
-                              });
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 4),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: isSelected ? AppColors.deepBlue : AppColors.iceBlue.withValues(alpha: 0.3),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: isSelected ? AppColors.deepBlue : AppColors.lightBlue.withValues(alpha: 0.2),
-                                ),
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                type,
-                                style: AppTypography.bodyMedium.copyWith(
-                                  fontSize: 12,
-                                  color: isSelected ? AppColors.white : AppColors.deepBlue,
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
+                    _typeSelector(),
                   ],
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: ElevatedButton(
-                onPressed: _selectedTimeSlot == null
-                    ? null
-                    : () {
-                        Navigator.pushNamed(
-                          context,
-                          '/payment',
-                          arguments: {
-                            'doctor': doctor,
-                            'date': _selectedDate,
-                            'slot': _selectedTimeSlot,
-                            'type': _selectedConsultationType,
-                          },
-                        );
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.deepBlue,
-                  disabledBackgroundColor: AppColors.iceBlue,
-                  minimumSize: const Size(double.infinity, 56),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+            _bottomBar(doctor),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatHour(int hour) {
+    final suffix = hour >= 12 ? 'PM' : 'AM';
+    final display = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    return '$display $suffix';
+  }
+
+  Widget _doctorBrief(DoctorModel doctor) {
+    return Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Image.network(
+            doctor.photo,
+            width: 52,
+            height: 52,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => Container(
+              width: 52,
+              height: 52,
+              color: AppColors.iceBlue,
+              child: const Icon(Icons.person, color: AppColors.deepBlue),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                doctor.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.titleLarge.copyWith(fontSize: 16),
+              ),
+              Text(
+                doctor.specialty,
+                style: AppTypography.bodyMedium.copyWith(fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+        Text(
+          '\$${doctor.fee.toStringAsFixed(0)}',
+          style: AppTypography.titleLarge.copyWith(
+            fontSize: 16,
+            color: AppColors.deepBlue,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _unavailableState(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.iceBlue.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: AppTypography.bodyLarge.copyWith(color: AppColors.mediumBlue),
+      ),
+    );
+  }
+
+  Widget _typeSelector() {
+    return Row(
+      children: _consultationTypes.map((type) {
+        final isSelected = _selectedConsultationType == type;
+        return Expanded(
+          child: GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedConsultationType = type;
+              });
+            },
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColors.deepBlue
+                    : AppColors.iceBlue.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isSelected
+                      ? AppColors.deepBlue
+                      : AppColors.lightBlue.withOpacity(0.2),
                 ),
-                child: Text(
-                  'Proceed to Payment',
-                  style: AppTypography.buttonText,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                type,
+                style: AppTypography.bodyMedium.copyWith(
+                  fontSize: 12,
+                  color: isSelected ? AppColors.white : AppColors.deepBlue,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
             ),
-          ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _bottomBar(DoctorModel doctor) {
+    return Padding(
+      padding: const EdgeInsets.all(20.0),
+      child: ElevatedButton(
+        onPressed: _selectedTimeSlot == null
+            ? null
+            : () {
+          Navigator.pushNamed(
+            context,
+            '/payment',
+            arguments: {
+              'doctor': doctor,
+              'date': _selectedDate,
+              'slot': _selectedTimeSlot,
+              'type': _selectedConsultationType,
+            },
+          );
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.deepBlue,
+          disabledBackgroundColor: AppColors.iceBlue,
+          minimumSize: const Size(double.infinity, 56),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: Text(
+          'Proceed to Payment'.toUpperCase(),
+          style: AppTypography.buttonText,
         ),
       ),
     );

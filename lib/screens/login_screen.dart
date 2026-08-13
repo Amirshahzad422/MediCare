@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../providers/auth_provider.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
@@ -51,6 +52,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         const SnackBar(content: Text('Login Failed. Invalid credentials.')),
       );
     }
+  }
+
+  void _forgotPassword() {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter your email first to reset the password.')),
+      );
+      return;
+    }
+
+    FirebaseAuth.instance.sendPasswordResetEmail(email: email).then((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Reset link sent! Check your inbox (and spam folder).'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }).catchError((e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to send reset link. Verify the email address.')),
+      );
+    });
   }
 
   @override
@@ -184,7 +210,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: 40),
+                        const SizedBox(height: 16),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: GestureDetector(
+                            onTap: _forgotPassword,
+                            child: Text(
+                              'Forgot Password?',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: AppColors.mediumBlue,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 28),
                         ElevatedButton(
                           onPressed: _isLoading ? null : _login,
                           style: ElevatedButton.styleFrom(

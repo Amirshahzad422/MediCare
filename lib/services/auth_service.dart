@@ -20,6 +20,9 @@ class AuthService {
       User? user = result.user;
 
       if (user != null) {
+        // Update the display name in Firebase Auth
+        await user.updateDisplayName(name);
+        
         UserModel newUser = UserModel(
           uid: user.uid,
           name: name,

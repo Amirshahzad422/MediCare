@@ -18,6 +18,8 @@ class CustomBottomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDoctor = role == 2;
 
+    // Doctor: Dashboard | Appointments | Profile (3 items)
+    // Patient: Home | Appointments | Pharmacy | Prescriptions | Profile (5 items)
     final items = isDoctor
         ? const [
             BottomNavigationBarItem(
@@ -45,7 +47,17 @@ class CustomBottomNavBar extends StatelessWidget {
             BottomNavigationBarItem(
               icon: Icon(Icons.calendar_month_outlined),
               activeIcon: Icon(Icons.calendar_month),
-              label: 'Appointments',
+              label: 'Appts',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.local_pharmacy_outlined),
+              activeIcon: Icon(Icons.local_pharmacy),
+              label: 'Pharmacy',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.description_outlined),
+              activeIcon: Icon(Icons.description),
+              label: 'Rx',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
@@ -53,6 +65,9 @@ class CustomBottomNavBar extends StatelessWidget {
               label: 'Profile',
             ),
           ];
+
+    // Clamp index to valid range for current role
+    final safeIndex = currentIndex.clamp(0, items.length - 1);
 
     return Container(
       decoration: BoxDecoration(
@@ -65,17 +80,17 @@ class CustomBottomNavBar extends StatelessWidget {
         ],
       ),
       child: BottomNavigationBar(
-        currentIndex: currentIndex,
+        currentIndex: safeIndex,
         onTap: onTap,
         backgroundColor: AppColors.white,
         selectedItemColor: AppColors.deepBlue,
         unselectedItemColor: AppColors.lightBlue,
         selectedLabelStyle: AppTypography.bodyMedium.copyWith(
           fontWeight: FontWeight.bold,
-          fontSize: 12,
+          fontSize: 11,
         ),
         unselectedLabelStyle: AppTypography.bodyMedium.copyWith(
-          fontSize: 12,
+          fontSize: 11,
         ),
         type: BottomNavigationBarType.fixed,
         items: items,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/doctor_model.dart';
+import '../services/profile_service.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
 
@@ -18,6 +19,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   bool _isPromoApplied = false;
   bool _isProcessing = false;
   String _selectedMethod = 'Card';
+  String? _failureMessage;  // F7: failure state
 
   @override
   void dispose() {
@@ -26,19 +28,29 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   void _applyPromo() {
-    if (_promoController.text.trim().toUpperCase() == 'MEDICARE10') {
-      setState(() {
-        _discount = 10.0;
-        _isPromoApplied = true;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Promo Code Applied Successfully!')),
-      );
+    final code = _promoController.text.trim().toUpperCase();
+    double discountAmt = 0.0;
+    String msg = '';
+
+    if (code == 'MEDICARE10') {
+      discountAmt = 10.0;
+      msg = 'Promo Code Applied: \$10 off!';
+    } else if (code == 'FIRST20') {
+      discountAmt = 20.0;
+      msg = 'Promo Code Applied: \$20 off for first-time patients!';
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid Promo Code')),
+        const SnackBar(content: Text('Invalid Promo Code'), backgroundColor: Colors.red),
       );
+      return;
     }
+    setState(() {
+      _discount = discountAmt;
+      _isPromoApplied = true;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: Colors.green),
+    );
   }
 
   void _processPayment(DoctorModel doctor, DateTime date, String slot, String type, double total) async {
@@ -53,6 +65,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       await FirebaseFirestore.instance.collection('appointments').add({
         'patientId': user.uid,
         'patientName': user.displayName ?? 'Patient',
+        'doctorId': '',
         'doctorName': doctor.name,
         'specialty': doctor.specialty,
         'doctorPhoto': doctor.photo,
@@ -64,6 +77,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
+      await ProfileService().incrementBookedCount(doctor.name);
+
       if (!mounted) return;
 
       showDialog(
@@ -74,31 +89,35 @@ class _PaymentScreenState extends State<PaymentScreen> {
             children: [
               Icon(Icons.check_circle, color: Colors.green),
               SizedBox(width: 8),
-              Text('Success'),
+              Text('Booking Confirmed!'),
             ],
           ),
-          content: const Text('Your appointment has been booked successfully!'),
+          content: Text(
+            'Your appointment with ${doctor.name} on ${date.day}/${date.month}/${date.year} at $slot has been booked.',
+          ),
           actions: [
-            TextButton(
+            ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
                 Navigator.pushNamedAndRemoveUntil(context, '/dashboard', (route) => false);
               },
-              child: const Text('Go to Dashboard'),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.deepBlue, foregroundColor: AppColors.white),
+              child: const Text('View Appointments'),
             ),
           ],
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Payment Failed: ${e.toString()}')),
-      );
+      // F7: Show inline failure banner instead of just a snack bar
+      setState(() {
+        _failureMessage = 'Payment failed: ${e.toString()}. Please try again.';
+        _isProcessing = false;
+      });
     } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
+      if (mounted && _isProcessing) {
+        setState(() => _isProcessing = false);
       }
     }
   }
@@ -154,6 +173,41 @@ class _PaymentScreenState extends State<PaymentScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            // F7: Failure state banner
+            if (_failureMessage != null)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.error),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.error_outline, color: AppColors.error, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _failureMessage!,
+                            style: AppTypography.bodyMedium.copyWith(color: AppColors.error),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => setState(() => _failureMessage = null),
+                      child: const Text('Dismiss & Retry',
+                          style: TextStyle(color: AppColors.error)),
+                    ),
+                  ],
+                ),
+              ),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20.0),
