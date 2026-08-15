@@ -7,12 +7,12 @@ import 'empty_state.dart';
 import 'loader.dart';
 
 class RecordsView extends ConsumerWidget {
-  final String doctorName;
-  const RecordsView({super.key, required this.doctorName});
+  final String doctorId;
+  const RecordsView({super.key, required this.doctorId, required String doctorName});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final prescriptionsAsync = ref.watch(prescriptionsForDoctorProvider(doctorName));
+    final prescriptionsAsync = ref.watch(prescriptionsForDoctorProvider(doctorId));
     return prescriptionsAsync.when(
       data: (prescriptions) {
         if (prescriptions.isEmpty) return const EmptyState(icon: Icons.folder_open_outlined, title: 'No records yet');

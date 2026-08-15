@@ -12,17 +12,15 @@ final authStateProvider = StreamProvider<User?>((ref) {
 
 final userProfileProvider = FutureProvider<UserModel?>((ref) async {
   final authState = ref.watch(authStateProvider);
-  final user = authState.value;
+  final user = FirebaseAuth.instance.currentUser;
   if (user == null) return null;
 
-  // Fetch the latest user data from Firestore to get the registered name
   final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
   
   if (doc.exists) {
     return UserModel.fromMap(doc.data()!, user.uid);
   }
 
-  // Fallback if document doesn't exist yet
   return UserModel(
     uid: user.uid,
     name: user.displayName ?? '',

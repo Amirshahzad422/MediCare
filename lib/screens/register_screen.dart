@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
@@ -15,6 +16,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   int _selectedRole = 1;
   bool _isLoading = false;
@@ -24,6 +26,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -31,36 +34,47 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   void _register() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     final authService = ref.read(authServiceProvider);
-    final user = await authService.registerUser(
-      name: _nameController.text.trim(),
-      email: _emailController.text.trim(),
-      password: _passwordController.text.trim(),
-      role: _selectedRole,
-    );
+    try {
+      final email = _emailController.text.trim();
+      final phone = _phoneController.text.trim();
 
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = false;
-    });
-
-    if (user != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registration Successful!')),
-      );
-      
-      // Skip OTP for doctors (Role 2) and go to dashboard/onboarding
-      if (_selectedRole == 2) {
-        Navigator.pushReplacementNamed(context, '/dashboard');
-      } else {
-        Navigator.pushReplacementNamed(context, '/otp');
+      // Pre-flight checks before going to OTP screen
+      if (await authService.isEmailRegistered(email)) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This email is already registered. Please login instead.')),
+        );
+        return;
       }
-    } else {
+
+      if (await authService.isPhoneRegistered(phone)) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This phone number is already registered.')),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      Navigator.pushNamed(
+        context, 
+        '/otp',
+        arguments: {
+          'isRegistrationFlow': true,
+          'name': _nameController.text.trim(),
+          'email': email,
+          'password': _passwordController.text.trim(),
+          'phone': phone,
+          'role': _selectedRole,
+        },
+      );
+    } catch (e) {
+      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Registration Failed. Please try again.')),
       );
@@ -165,6 +179,44 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Please enter your email';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          'Phone Number*',
+                          style: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _phoneController,
+                          style: AppTypography.bodyLarge,
+                          keyboardType: TextInputType.text, // Changed to text to guarantee + symbol access on all emulator keyboards
+                          decoration: InputDecoration(
+                            hintText: '+1 555 123 4567',
+                            hintStyle: AppTypography.bodyMedium.copyWith(color: Colors.black38),
+                            prefixIcon: const Icon(Icons.phone_outlined, color: AppColors.mediumBlue),
+                            errorMaxLines: 2,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: AppColors.lightBlue),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: AppColors.lightBlue),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: AppColors.deepBlue, width: 2),
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter your phone number';
+                            }
+                            if (!RegExp(r'^\+[1-9]\d{6,14}$').hasMatch(value.trim())) {
+                              return 'Enter a valid number with country code\n(e.g. +15551234567)';
                             }
                             return null;
                           },

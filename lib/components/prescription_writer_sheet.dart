@@ -1,27 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../components/button.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
+import '../providers/profile_provider.dart';
 
-class PrescriptionWriterSheet extends StatefulWidget {
+class PrescriptionWriterSheet extends ConsumerStatefulWidget {
   final String doctorName;
   final String specialty;
   final String doctorPhoto;
+  final String? prefilledPatientId;
+  final String? prefilledPatientName;
 
   const PrescriptionWriterSheet({
     super.key,
     required this.doctorName,
     required this.specialty,
     required this.doctorPhoto,
+    this.prefilledPatientId,
+    this.prefilledPatientName,
   });
 
   @override
-  State<PrescriptionWriterSheet> createState() => _PrescriptionWriterSheetState();
+  ConsumerState<PrescriptionWriterSheet> createState() => _PrescriptionWriterSheetState();
 }
 
-class _PrescriptionWriterSheetState extends State<PrescriptionWriterSheet> {
+class _PrescriptionWriterSheetState extends ConsumerState<PrescriptionWriterSheet> {
   String? _selectedPatientId;
   String? _selectedPatientName;
 
@@ -48,6 +54,8 @@ class _PrescriptionWriterSheetState extends State<PrescriptionWriterSheet> {
   @override
   void initState() {
     super.initState();
+    _selectedPatientId = widget.prefilledPatientId;
+    _selectedPatientName = widget.prefilledPatientName;
     _addMedicineRow(); // start with one empty row
   }
 
@@ -104,14 +112,37 @@ class _PrescriptionWriterSheetState extends State<PrescriptionWriterSheet> {
     final dateStr =
         '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
 
+    final docAsync = ref.read(userDocProvider);
+    final rawName = docAsync.value?['name'] ?? widget.doctorName;
+    final doctorName = rawName.startsWith('Dr.') ? rawName : 'Dr. $rawName';
+    final specialty = docAsync.value?['specialty'] ?? widget.specialty;
+    final photo = docAsync.value?['photo'] ?? widget.doctorPhoto;
+
+    String patientAge = 'N/A';
+    String patientGender = 'N/A';
+
     try {
+      if (_selectedPatientId != null) {
+        final patientSnap = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(_selectedPatientId)
+            .get();
+        final patientData = patientSnap.data();
+        if (patientData != null) {
+          patientAge = patientData['age']?.toString() ?? 'N/A';
+          patientGender = patientData['gender'] ?? 'N/A';
+        }
+      }
+
       await FirebaseFirestore.instance.collection('prescriptions').add({
         'patientId': _selectedPatientId,
         'patientName': _selectedPatientName,
+        'patientAge': patientAge,
+        'patientGender': patientGender,
         'doctorId': user?.uid ?? '',
-        'doctorName': widget.doctorName,
-        'specialty': widget.specialty,
-        'doctorPhoto': widget.doctorPhoto,
+        'doctorName': doctorName,
+        'specialty': specialty,
+        'doctorPhoto': photo,
         'date': dateStr,
         'diagnosis': _diagnosisController.text.trim(),
         'medicines': validMeds,
@@ -163,65 +194,99 @@ class _PrescriptionWriterSheetState extends State<PrescriptionWriterSheet> {
                 children: [
                   _label('Patient'),
 
-                  StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('appointments')
-                        .where('doctorName', isEqualTo: widget.doctorName)
-                        .where('status', isEqualTo: 'completed')
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: LinearProgressIndicator());
-                      }
+                  if (widget.prefilledPatientId != null)
+                    TextFormField(
+                      initialValue: widget.prefilledPatientName ?? 'Patient',
+                      readOnly: true,
+                      style: AppTypography.bodyLarge,
+                      decoration: _inputDecoration('Selected patient', Icons.person_outline),
+                    )
+                  else
+                    StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('appointments')
+                          .where('doctorId', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: LinearProgressIndicator());
+                        }
 
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.shade50,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            'No completed consultations found yet. Complete an appointment first to write a prescription.',
-                            style: AppTypography.bodyMedium
-                                .copyWith(color: Colors.orange.shade800),
+                        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                          return Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              'No completed consultations found yet. Complete an appointment first to write a prescription.',
+                              style: AppTypography.bodyMedium
+                                  .copyWith(color: Colors.orange.shade800),
+                            ),
+                          );
+                        }
+
+                        final allDocs = snapshot.data!.docs;
+                        final docs = allDocs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final rawStatus = data['status'];
+                          return rawStatus == 2 ||
+                              rawStatus?.toString() == '2' ||
+                              rawStatus?.toString().toLowerCase() == 'completed';
+                        }).toList();
+
+                        if (docs.isEmpty) {
+                          return Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              'No completed consultations found yet. Complete an appointment first to write a prescription.',
+                              style: AppTypography.bodyMedium
+                                  .copyWith(color: Colors.orange.shade800),
+                            ),
+                          );
+                        }
+
+                        final Map<String, String> completedPatients = {};
+                        for (var doc in docs) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final pId = data['patientId'] ?? '';
+                          final pName = data['patientName'] ?? 'Patient';
+                          if (pId.isNotEmpty) {
+                            completedPatients[pId] = pName;
+                          }
+                        }
+
+                        return SizedBox(
+                          width: 250,
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedPatientId,
+                            isExpanded: true,
+                            hint: Text('Choose a patient...',
+                                style: AppTypography.bodyMedium.copyWith(fontSize: 13)),
+                            decoration: _inputDecoration('Select patient',
+                                Icons.person_outline),
+                            items: completedPatients.entries.map((entry) {
+                              return DropdownMenuItem<String>(
+                                value: entry.key,
+                                child: Text(entry.value,
+                                    style: AppTypography.bodyMedium.copyWith(fontSize: 13)),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              setState(() {
+                                _selectedPatientId = val;
+                                _selectedPatientName = completedPatients[val];
+                              });
+                            },
                           ),
                         );
-                      }
-
-                      final docs = snapshot.data!.docs;
-                      final Map<String, String> completedPatients = {};
-                      for (var doc in docs) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        final pId = data['patientId'] ?? '';
-                        final pName = data['patientName'] ?? 'Patient';
-                        if (pId.isNotEmpty) {
-                          completedPatients[pId] = pName;
-                        }
-                      }
-
-                      return DropdownButtonFormField<String>(
-                        value: _selectedPatientId,
-                        hint: Text('Choose a patient...',
-                            style: AppTypography.bodyMedium),
-                        decoration: _inputDecoration('Select patient',
-                            Icons.person_outline),
-                        items: completedPatients.entries.map((entry) {
-                          return DropdownMenuItem<String>(
-                            value: entry.key,
-                            child: Text(entry.value,
-                                style: AppTypography.bodyLarge),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          setState(() {
-                            _selectedPatientId = val;
-                            _selectedPatientName = completedPatients[val];
-                          });
-                        },
-                      );
-                    },
-                  ),
+                      },
+                    ),
 
                   const SizedBox(height: 16),
                   _label('Diagnosis'),

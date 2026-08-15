@@ -28,10 +28,10 @@ final prescriptionsStreamProvider = StreamProvider<List<Map<String, dynamic>>>((
 
 /// Prescriptions issued by one doctor (Doctor Dashboard → Records tab).
 final prescriptionsForDoctorProvider =
-    StreamProvider.family<List<Map<String, dynamic>>, String>((ref, doctorName) {
+    StreamProvider.family<List<Map<String, dynamic>>, String>((ref, doctorId) {
   return FirebaseFirestore.instance
       .collection('prescriptions')
-      .where('doctorName', isEqualTo: doctorName)
+      .where('doctorId', isEqualTo: doctorId)
       .snapshots()
       .map((snapshot) {
     final list = snapshot.docs.map((doc) {

@@ -21,27 +21,11 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
 
   final List<String> _consultationTypes = ['Video Call', 'In-App Chat', 'In-Person'];
 
-  List<String> _generateSlots(DoctorModel doctor) {
+  List<String> _generateSlotsFallback(DoctorModel doctor) {
     final List<String> slots = [];
-    final now = DateTime.now();
     final duration = doctor.consultationDuration;
-    int startHour = doctor.businessStartHour;
-    int endHour = doctor.businessEndHour;
-
-    if (_selectedDate.year == now.year &&
-        _selectedDate.month == now.month &&
-        _selectedDate.day == now.day) {
-      final currentHour = now.hour;
-      final currentMinute = now.minute;
-      final earliestStart = currentHour + (currentMinute > 0 ? 1 : 0);
-      if (earliestStart > startHour) {
-        startHour = earliestStart;
-      }
-      if (startHour >= endHour) {
-        return slots;
-      }
-    }
-
+    final startHour = doctor.businessStartHour;
+    final endHour = doctor.businessEndHour;
     final startMinutes = startHour * 60;
     final endMinutes = endHour * 60;
 
@@ -56,6 +40,23 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
       }
     }
     return slots;
+  }
+
+  List<String> _getSlotsForDate(DoctorModel doctor, DateTime date) {
+    List<String> allSlots = doctor.slots.isNotEmpty ? doctor.slots : _generateSlotsFallback(doctor);
+    final now = DateTime.now();
+    if (date.year == now.year && date.month == now.month && date.day == now.day) {
+      final currentTime = TimeOfDay.fromDateTime(now);
+      allSlots = allSlots.where((slot) {
+        final slotTime = DateFormat('hh:mm a').parse(slot);
+        final slotHour = slotTime.hour;
+        final slotMinute = slotTime.minute;
+        if (slotHour > currentTime.hour) return true;
+        if (slotHour == currentTime.hour && slotMinute > currentTime.minute) return true;
+        return false;
+      }).toList();
+    }
+    return allSlots;
   }
 
   @override
@@ -85,6 +86,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
     }
 
     final doctor = args;
+
     final String dayName = DateFormat('EEEE').format(_selectedDate);
     final bool isAvailableDay = doctor.availableDays.contains(dayName);
     final dateStr = formatDateKey(_selectedDate);
@@ -115,15 +117,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
                     const SizedBox(height: 24),
                     Text('Select Date', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
                     const SizedBox(height: 12),
-                    DatePickerRow(
-                      selectedDate: _selectedDate,
-                      onSelect: (date) {
-                        setState(() {
-                          _selectedDate = date;
-                          _selectedTimeSlot = null;
-                        });
-                      },
-                    ),
+                    _buildDatePicker(),
                     const SizedBox(height: 28),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -155,7 +149,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
                     else
                       bookedSlotsAsync.when(
                         data: (bookedSlots) {
-                          final allSlots = _generateSlots(doctor);
+                          final allSlots = _getSlotsForDate(doctor, _selectedDate);
                           final availableSlots = allSlots
                               .where((slot) => !bookedSlots.contains(slot))
                               .toList();
@@ -196,6 +190,27 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
     );
   }
 
+  Widget _buildDatePicker() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.iceBlue, width: 1.5),
+      ),
+      child: CalendarDatePicker(
+        initialDate: _selectedDate,
+        firstDate: DateTime.now(),
+        lastDate: DateTime.now().add(const Duration(days: 90)),
+        onDateChanged: (date) {
+          setState(() {
+            _selectedDate = date;
+            _selectedTimeSlot = null;
+          });
+        },
+      ),
+    );
+  }
+
   String _formatHour(int hour) {
     final suffix = hour >= 12 ? 'PM' : 'AM';
     final display = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
@@ -207,18 +222,25 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(10),
-          child: Image.network(
-            doctor.photo,
-            width: 52,
-            height: 52,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => Container(
-              width: 52,
-              height: 52,
-              color: AppColors.iceBlue,
-              child: const Icon(Icons.person, color: AppColors.deepBlue),
-            ),
-          ),
+          child: doctor.photo.isNotEmpty && doctor.photo.startsWith('http')
+              ? Image.network(
+                  doctor.photo,
+                  width: 52,
+                  height: 52,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    width: 52,
+                    height: 52,
+                    color: AppColors.iceBlue,
+                    child: const Icon(Icons.person, color: AppColors.deepBlue),
+                  ),
+                )
+              : Container(
+                  width: 52,
+                  height: 52,
+                  color: AppColors.iceBlue,
+                  child: const Icon(Icons.person, color: AppColors.deepBlue),
+                ),
         ),
         const SizedBox(width: 12),
         Expanded(

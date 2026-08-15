@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../components/empty_state.dart';
 import '../components/loader.dart';
-import '../models/medicine_model.dart';
+import '../components/medicine_card.dart';
 import '../providers/cart_provider.dart';
 import '../providers/medicines_provider.dart';
 import '../styles/colors.dart';
@@ -31,10 +31,54 @@ class _PharmacyScreenState extends ConsumerState<PharmacyScreen> {
         'First Aid',
       ];
 
+  bool _argumentsProcessed = false;
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_argumentsProcessed) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is List<dynamic>) {
+        _addPrescribedMedicinesToCart(args);
+      }
+      _argumentsProcessed = true;
+    }
+  }
+
+  Future<void> _addPrescribedMedicinesToCart(List<dynamic> prescribed) async {
+    try {
+      final catalog = await ref.read(medicinesOnceProvider.future);
+      int addedCount = 0;
+      for (final item in prescribed) {
+        final name = item['name']?.toString().toLowerCase() ?? '';
+        final match = catalog.where((m) => m.name.toLowerCase() == name).toList();
+        if (match.isNotEmpty) {
+          ref.read(cartProvider.notifier).add(match.first);
+          addedCount++;
+        }
+      }
+      if (addedCount > 0 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Added $addedCount prescribed medicine(s) to cart!'),
+            backgroundColor: AppColors.deepBlue,
+            action: SnackBarAction(
+              label: 'View Cart',
+              textColor: AppColors.white,
+              onPressed: () => Navigator.pushNamed(context, '/cart'),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error adding prescribed medicines to cart: $e');
+    }
   }
 
   @override
@@ -54,10 +98,7 @@ class _PharmacyScreenState extends ConsumerState<PharmacyScreen> {
           Stack(
             alignment: Alignment.topRight,
             children: [
-              IconButton(
-                icon: const Icon(Icons.shopping_bag_outlined, color: AppColors.deepBlue),
-                onPressed: () => Navigator.pushNamed(context, '/cart'),
-              ),
+
               if (totalItems > 0)
                 Positioned(
                   right: 6,
@@ -189,14 +230,14 @@ class _PharmacyScreenState extends ConsumerState<PharmacyScreen> {
                         ),
                         itemCount: filtered.length,
                         itemBuilder: (context, index) =>
-                            _MedicineCard(medicine: filtered[index]),
+                            MedicineCard(medicine: filtered[index]),
                       );
                     }
                     return ListView.separated(
                       padding: const EdgeInsets.all(20),
                       itemCount: filtered.length,
                       separatorBuilder: (context, index) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) => _MedicineCard(
+                      itemBuilder: (context, index) => MedicineCard(
                         medicine: filtered[index],
                         horizontal: true,
                       ),
@@ -266,181 +307,6 @@ class _CartButton extends StatelessWidget {
               ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _MedicineCard extends ConsumerWidget {
-  final MedicineModel medicine;
-  final bool horizontal;
-
-  const _MedicineCard({required this.medicine, this.horizontal = false});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final content = horizontal
-        ? Row(
-            children: [
-              _medicineImage(size: 72),
-              const SizedBox(width: 12),
-              Expanded(child: _infoColumn(context)),
-              _addControls(ref),
-            ],
-          )
-        : Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(child: _medicineImage(size: 84)),
-              const SizedBox(height: 10),
-              Expanded(child: _infoColumn(context)),
-              const SizedBox(height: 8),
-              _priceRow(ref),
-            ],
-          );
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.iceBlue, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.darkNavy.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: content,
-    );
-  }
-
-  Widget _medicineImage({required double size}) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Image.network(
-        medicine.image,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Container(
-          width: size,
-          height: size,
-          color: AppColors.iceBlue,
-          child: const Icon(Icons.medication, color: AppColors.deepBlue, size: 30),
-        ),
-      ),
-    );
-  }
-
-  Widget _infoColumn(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          children: [
-            if (medicine.requiresPrescription)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  'Rx',
-                  style: AppTypography.bodyMedium.copyWith(
-                    fontSize: 9,
-                    color: Colors.orange.shade800,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            const Spacer(),
-            Text(
-              medicine.category,
-              style: AppTypography.bodyMedium.copyWith(fontSize: 10),
-            ),
-          ],
-        ),
-        Text(
-          medicine.name,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: AppTypography.titleLarge.copyWith(fontSize: 14),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          medicine.brand,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: AppTypography.bodyMedium.copyWith(fontSize: 11),
-        ),
-      ],
-    );
-  }
-
-  Widget _priceRow(WidgetRef ref) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          '\$${medicine.price.toStringAsFixed(2)}',
-          style: AppTypography.titleLarge.copyWith(
-            fontSize: 16,
-            color: AppColors.deepBlue,
-          ),
-        ),
-        _addControls(ref),
-      ],
-    );
-  }
-
-  Widget _addControls(WidgetRef ref) {
-    final cart = ref.watch(cartProvider);
-    final inCart = cart.any((item) => item.medicine.id == medicine.id);
-    final qty = inCart
-        ? cart.firstWhere((item) => item.medicine.id == medicine.id).quantity
-        : 0;
-
-    if (!inCart) {
-      return Container(
-        decoration: BoxDecoration(
-          color: AppColors.deepBlue,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: IconButton(
-          tooltip: 'Add to cart',
-          onPressed: () => ref.read(cartProvider.notifier).add(medicine),
-          icon: const Icon(Icons.add, color: AppColors.white, size: 20),
-        ),
-      );
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.iceBlue.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            onPressed: () => ref.read(cartProvider.notifier).decrement(medicine.id),
-            icon: const Icon(Icons.remove, color: AppColors.deepBlue, size: 18),
-          ),
-          Text('$qty', style: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.bold)),
-          IconButton(
-            onPressed: () {
-              if (qty < medicine.stock) {
-                ref.read(cartProvider.notifier).increment(medicine.id);
-              }
-            },
-            icon: const Icon(Icons.add, color: AppColors.deepBlue, size: 18),
-          ),
-        ],
       ),
     );
   }

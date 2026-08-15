@@ -418,18 +418,25 @@ class _DoctorsScreenState extends ConsumerState<DoctorsScreen> {
           children: [
             Center(
               child: ClipOval(
-                child: Image.network(
-                  doctor.photo,
-                  width: 84,
-                  height: 84,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    width: 84,
-                    height: 84,
-                    color: AppColors.iceBlue,
-                    child: const Icon(Icons.person, color: AppColors.deepBlue),
-                  ),
-                ),
+                child: doctor.photo.isNotEmpty && doctor.photo.startsWith('http')
+                    ? Image.network(
+                        doctor.photo,
+                        width: 84,
+                        height: 84,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          width: 84,
+                          height: 84,
+                          color: AppColors.iceBlue,
+                          child: const Icon(Icons.person, color: AppColors.deepBlue),
+                        ),
+                      )
+                    : Container(
+                        width: 84,
+                        height: 84,
+                        color: AppColors.iceBlue,
+                        child: const Icon(Icons.person, color: AppColors.deepBlue),
+                      ),
               ),
             ),
             const SizedBox(height: 10),

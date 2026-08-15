@@ -406,15 +406,15 @@ class DbSeeder {
     final doctorsCollection = FirebaseFirestore.instance.collection('doctors');
     final existing = await doctorsCollection.limit(1).get();
     if (existing.docs.isNotEmpty) {
-      print("Doctors already seeded! Skipping...");
+      // print"Doctors already seeded! Skipping...");
       await upgradeDoctors();
       return;
     }
-    print("Seeding 12 premium doctors...");
+    // print"Seeding 12 premium doctors...");
     for (final doc in dummyDoctors) {
       await doctorsCollection.add(doc);
     }
-    print("Success! 12 doctors seeded.");
+    // print"Success! 12 doctors seeded.");
   }
 
   /// Back-fills the new filter fields on already-seeded doctor docs.
@@ -435,25 +435,25 @@ class DbSeeder {
       await doc.reference.set(merged);
       updated++;
     }
-    print("Upgraded $updated doctor docs with extended fields.");
+    // print"Upgraded $updated doctor docs with extended fields.");
   }
 
   static Future<void> seedMedicines() async {
     final medicinesCollection = FirebaseFirestore.instance.collection('medicines');
     final existing = await medicinesCollection.limit(1).get();
     if (existing.docs.isNotEmpty) {
-      print("Medicines already seeded! Skipping...");
+      // print"Medicines already seeded! Skipping...");
       return;
     }
-    print("Seeding medicines catalogue...");
+    // print"Seeding medicines catalogue...");
     for (final doc in dummyMedicines) {
       await medicinesCollection.add(doc);
     }
-    print("Success! Medicines seeded.");
+    // print"Success! Medicines seeded.");
   }
 
   static Future<void> seedAll() async {
-    await seedDoctors();
+    // await seedDoctors();
     await seedMedicines();
   }
 }

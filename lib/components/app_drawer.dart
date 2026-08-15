@@ -233,7 +233,7 @@ class AppDrawer extends ConsumerWidget {
                 style: AppTypography.titleLarge.copyWith(fontSize: 20),
               ),
             ),
-            Expanded(child: RecordsView(doctorName: doctorName)),
+            Expanded(child: RecordsView(doctorName: doctorName, doctorId: '',)),
           ],
         ),
       ),

@@ -45,10 +45,10 @@ class TestimonialCard extends StatelessWidget {
               CircleAvatar(
                 radius: 22,
                 backgroundColor: AppColors.iceBlue,
-                backgroundImage: photo != null && photo!.isNotEmpty
+                backgroundImage: photo != null && photo!.isNotEmpty && photo!.startsWith('http')
                     ? NetworkImage(photo!)
                     : null,
-                child: photo == null || photo!.isEmpty
+                child: photo == null || photo!.isEmpty || !photo!.startsWith('http')
                     ? const Icon(Icons.person, color: AppColors.deepBlue)
                     : null,
               ),

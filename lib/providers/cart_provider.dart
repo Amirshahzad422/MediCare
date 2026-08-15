@@ -64,6 +64,20 @@ class CartNotifier extends Notifier<List<CartItem>> {
     state = state.where((item) => item.medicine.id != medicineId).toList();
   }
 
+  void updateQuantity(String medicineId, int newQuantity) {
+    if (newQuantity <= 0) {
+      remove(medicineId);
+      return;
+    }
+    state = [
+      for (final item in state)
+        if (item.medicine.id == medicineId)
+          CartItem(medicine: item.medicine, quantity: newQuantity)
+        else
+          item,
+    ];
+  }
+
   void clear() => state = [];
 
   bool get isEmpty => state.isEmpty;

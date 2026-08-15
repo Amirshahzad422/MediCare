@@ -5,7 +5,6 @@ import '../components/empty_state.dart';
 import '../components/modal.dart';
 import '../layouts/responsive_layout.dart';
 import '../providers/cart_provider.dart';
-import '../providers/orders_provider.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
 
@@ -19,10 +18,6 @@ class CartScreen extends ConsumerStatefulWidget {
 class _CartScreenState extends ConsumerState<CartScreen> {
   final _promoController = TextEditingController();
   bool _isPromoApplied = false;
-  bool _isPlacingOrder = false;
-
-  String _address = '';
-  String _paymentMethod = 'Card';
 
   @override
   void dispose() {
@@ -36,90 +31,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       AppModal.showSuccess(context, 'Promo code applied — \$10 off!');
     } else {
       AppModal.showError(context, 'Invalid promo code');
-    }
-  }
-
-  Future<void> _checkout(CartNotifier notifier) async {
-    if (notifier.isEmpty) return;
-
-    final address = await AppModal.showBottomSheet<String>(
-      context: context,
-      height: 420,
-      child: _AddressForm(
-        initial: _address,
-        onContinue: (address, method) {
-          Navigator.pop(context, '$address||$method');
-        },
-      ),
-    );
-
-    if (address == null) return;
-
-    final parts = address.split('||');
-    _address = parts[0];
-    _paymentMethod = parts[1];
-
-    setState(() => _isPlacingOrder = true);
-
-    final subtotal = notifier.subtotal;
-    final discount = _isPromoApplied ? CartNotifier.promoDiscount : 0.0;
-    final deliveryFee = subtotal > 0 ? 4.99 : 0.0;
-    final total = subtotal - discount + deliveryFee;
-
-    final orderService = ref.read(orderServiceProvider);
-    final order = await orderService.placeOrder(
-      items: notifier.toOrderItems(),
-      subtotal: subtotal + deliveryFee,
-      discount: discount,
-      total: total,
-      address: _address,
-      paymentMethod: _paymentMethod,
-    );
-
-    if (!mounted) return;
-    setState(() => _isPlacingOrder = false);
-
-    if (order != null) {
-      notifier.clear();
-      _promoController.clear();
-      _isPromoApplied = false;
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          backgroundColor: AppColors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green, size: 28),
-              SizedBox(width: 8),
-              Expanded(child: Text('Order Placed')),
-            ],
-          ),
-          content: Text(
-            'Order ${order.orderNo} has been placed successfully.\n\n'
-            'Track its status from the Orders screen.',
-            style: AppTypography.bodyLarge,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pushNamed(context, '/orders');
-              },
-              child: Text(
-                'Track Order',
-                style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.deepBlue,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    } else {
-      AppModal.showError(context, 'Failed to place order. Please try again.');
     }
   }
 
@@ -189,9 +100,17 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                   padding: const EdgeInsets.all(20),
                   child: SharedButton(
                     label: 'Proceed to Checkout',
-                    isLoading: _isPlacingOrder,
                     icon: Icons.local_shipping_outlined,
-                    onPressed: _isPlacingOrder ? null : () => _checkout(notifier),
+                    onPressed: () {
+                      Navigator.pushNamed(
+                        context,
+                        '/checkout',
+                        arguments: {
+                          'isPromoApplied': _isPromoApplied,
+                          'discount': discount,
+                        },
+                      );
+                    },
                   ),
                 ),
               ],
@@ -212,18 +131,25 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: Image.network(
-              item.medicine.image,
-              width: 56,
-              height: 56,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
-                width: 56,
-                height: 56,
-                color: AppColors.iceBlue,
-                child: const Icon(Icons.medication, color: AppColors.deepBlue),
-              ),
-            ),
+            child: item.medicine.image.isNotEmpty && item.medicine.image.startsWith('http')
+                ? Image.network(
+                    item.medicine.image,
+                    width: 56,
+                    height: 56,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      width: 56,
+                      height: 56,
+                      color: AppColors.iceBlue,
+                      child: const Icon(Icons.medication, color: AppColors.deepBlue),
+                    ),
+                  )
+                : Container(
+                    width: 56,
+                    height: 56,
+                    color: AppColors.iceBlue,
+                    child: const Icon(Icons.medication, color: AppColors.deepBlue),
+                  ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -338,121 +264,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
             style: AppTypography.bodyLarge.copyWith(color: highlight),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _AddressForm extends StatefulWidget {
-  final String initial;
-  final void Function(String address, String method) onContinue;
-
-  const _AddressForm({required this.initial, required this.onContinue});
-
-  @override
-  State<_AddressForm> createState() => _AddressFormState();
-}
-
-class _AddressFormState extends State<_AddressForm> {
-  late final TextEditingController _controller;
-  String _method = 'Card';
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.initial);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Delivery Address', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _controller,
-            maxLines: 3,
-            style: AppTypography.bodyLarge,
-            decoration: InputDecoration(
-              hintText: 'House, street, city, postal code...',
-              hintStyle: AppTypography.bodyMedium,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.lightBlue),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.lightBlue),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.deepBlue, width: 2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text('Payment Method', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _methodTile('Card', Icons.credit_card),
-              const SizedBox(width: 12),
-              _methodTile('Wallet', Icons.account_balance_wallet),
-            ],
-          ),
-          const SizedBox(height: 28),
-          SharedButton(
-            label: 'Pay & Place Order',
-            onPressed: () {
-              if (_controller.text.trim().length < 8) {
-                AppModal.showError(context, 'Please enter a complete delivery address.');
-                return;
-              }
-              widget.onContinue(_controller.text.trim(), _method);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _methodTile(String label, IconData icon) {
-    final selected = _method == label;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _method = label),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.deepBlue : AppColors.iceBlue.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: selected ? AppColors.deepBlue : AppColors.lightBlue.withValues(alpha: 0.3),
-            ),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: selected ? AppColors.white : AppColors.deepBlue),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: AppTypography.bodyMedium.copyWith(
-                  color: selected ? AppColors.white : AppColors.deepBlue,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

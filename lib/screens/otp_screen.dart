@@ -4,21 +4,49 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../components/button.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
+import '../services/auth_service.dart';
 
-class OtpScreen extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/auth_provider.dart';
+import '../providers/profile_provider.dart';
+
+class OtpScreen extends ConsumerStatefulWidget {
   const OtpScreen({super.key});
 
   @override
-  State<OtpScreen> createState() => _OtpScreenState();
+  ConsumerState<OtpScreen> createState() => _OtpScreenState();
 }
 
-class _OtpScreenState extends State<OtpScreen> {
+class _OtpScreenState extends ConsumerState<OtpScreen> {
   final _phoneController = TextEditingController();
   final _codeController = TextEditingController();
   bool _codeSent = false;
   bool _isLoading = false;
   String? _verificationId;
   int? _forceResendingToken;
+  
+  Map<String, dynamic>? _registrationData;
+  bool _initializedFromArgs = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initializedFromArgs) {
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if (args != null && args.containsKey('phone')) {
+        _phoneController.text = args['phone'];
+        if (args['isRegistrationFlow'] == true) {
+          _registrationData = args;
+        }
+        _initializedFromArgs = true;
+        _codeSent = true; // Instantly show OTP UI
+        // Schedule request code after build
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _requestCode();
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -37,6 +65,21 @@ class _OtpScreenState extends State<OtpScreen> {
     }
 
     setState(() => _isLoading = true);
+
+    // If it's a login flow (not registration), verify the phone exists in DB FIRST.
+    if (_registrationData == null) {
+      final authService = AuthService();
+      final isRegistered = await authService.isPhoneRegistered(phone);
+      if (!isRegistered) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('This number is not registered. Please register first.')),
+          );
+        }
+        return;
+      }
+    }
 
     try {
       await FirebaseAuth.instance.verifyPhoneNumber(
@@ -77,15 +120,55 @@ class _OtpScreenState extends State<OtpScreen> {
 
   Future<void> _signInWithCredential(PhoneAuthCredential credential, String phone) async {
     try {
-      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
-      final user = userCredential.user;
-      if (user != null) {
+      final currentUser = FirebaseAuth.instance.currentUser;
+
+      if (currentUser != null) {
+        // We are already logged in (e.g., came from Registration).
+        // Link the phone credential to this account.
+        try {
+          await currentUser.linkWithCredential(credential);
+        } catch (e) {
+          // Ignore if already linked
+        }
         await _savePhoneNumber(phone);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Phone number verified successfully!')),
           );
           Navigator.pushReplacementNamed(context, '/dashboard');
+        }
+      } else {
+        // Logging in via "Continue with Phone"
+        final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+        final user = userCredential.user;
+        if (user != null) {
+          await _savePhoneNumber(phone);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Logged in successfully!')),
+            );
+            
+            final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+            if (doc.exists) {
+              final role = doc.data()?['role'] ?? 1;
+              bool onboardingComplete = false;
+              if (role == 2) {
+                final doctorDoc = await FirebaseFirestore.instance.collection('doctors').doc(user.uid).get();
+                onboardingComplete = doctorDoc.data()?['isOnboardingComplete'] == true;
+              } else {
+                final patientDoc = await FirebaseFirestore.instance.collection('patients').doc(user.uid).get();
+                onboardingComplete = patientDoc.data()?['isOnboardingComplete'] == true;
+              }
+              if (!onboardingComplete) {
+                final route = role == 2 ? '/doctor-onboarding' : '/patient-onboarding';
+                Navigator.pushReplacementNamed(context, route);
+              } else {
+                Navigator.pushReplacementNamed(context, '/dashboard');
+              }
+            } else {
+              Navigator.pushReplacementNamed(context, '/dashboard');
+            }
+          }
         }
       }
     } catch (e) {
@@ -97,6 +180,8 @@ class _OtpScreenState extends State<OtpScreen> {
       }
     }
   }
+
+
 
   Future<void> _verify() async {
     final code = _codeController.text.trim();
@@ -121,7 +206,26 @@ class _OtpScreenState extends State<OtpScreen> {
         verificationId: _verificationId!,
         smsCode: code,
       );
-      await _signInWithCredential(credential, _phoneController.text.trim());
+      
+      if (_registrationData != null) {
+        _registrationData!['phone'] = _phoneController.text.trim(); // Update in case user changed it on this screen after a failed send
+        final authService = AuthService();
+        await authService.registerWithVerifiedPhone(credential, _registrationData!);
+        if (mounted) {
+          // Invalidate profile providers so they fetch the newly created Firestore document
+          ref.invalidate(userProfileProvider);
+          ref.invalidate(userDocProvider);
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Registration successful!')),
+          );
+          final role = _registrationData!['role'];
+          final route = role == 2 ? '/doctor-onboarding' : '/patient-onboarding';
+          Navigator.pushReplacementNamed(context, route);
+        }
+      } else {
+        await _signInWithCredential(credential, _phoneController.text.trim());
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -185,7 +289,7 @@ class _OtpScreenState extends State<OtpScreen> {
                       ),
                       const SizedBox(height: 14),
                       Text(
-                        'Verify Your Number',
+                        _codeSent ? 'Enter Verification Code' : 'Verify Your Number',
                         style: AppTypography.displayLarge.copyWith(
                           color: AppColors.white,
                           fontSize: 24,
@@ -194,7 +298,9 @@ class _OtpScreenState extends State<OtpScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'We will send a 6-digit code to verify your device.',
+                        _codeSent 
+                            ? 'We have sent a 6-digit code to your phone.' 
+                            : 'We will send a 6-digit code to verify your device.',
                         style: AppTypography.bodyMedium.copyWith(color: AppColors.iceBlue),
                         textAlign: TextAlign.center,
                       ),
@@ -227,7 +333,7 @@ class _OtpScreenState extends State<OtpScreen> {
                       TextField(
                         controller: _codeSent ? _codeController : _phoneController,
                         enabled: !_codeSent || !_isLoading,
-                        keyboardType: TextInputType.number,
+                        keyboardType: _codeSent ? TextInputType.number : TextInputType.phone,
                         maxLength: _codeSent ? 6 : 15,
                         style: AppTypography.bodyLarge.copyWith(
                           fontSize: 22,
@@ -236,7 +342,7 @@ class _OtpScreenState extends State<OtpScreen> {
                         ),
                         textAlign: TextAlign.center,
                         decoration: InputDecoration(
-                          hintText: _codeSent ? '------' : '+1 555 123 4567',
+                          hintText: _codeSent ? '------' : '+92 300 1234567',
                           hintStyle: AppTypography.bodyMedium.copyWith(
                             color: Colors.black26,
                             letterSpacing: _codeSent ? 8 : 0,
@@ -267,22 +373,47 @@ class _OtpScreenState extends State<OtpScreen> {
                         onPressed: _isLoading ? null : (_codeSent ? _verify : _requestCode),
                       ),
                       const SizedBox(height: 16),
-                      TextButton(
-                        onPressed: _codeSent
-                            ? () => setState(() {
-                          _codeSent = false;
-                          _codeController.clear();
-                          _verificationId = null;
-                        })
-                            : null,
-                        child: Text(
-                          _codeSent ? 'Change phone number / Resend' : 'Skip for now',
-                          style: AppTypography.bodyMedium.copyWith(
-                            color: AppColors.mediumBlue,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      if (_codeSent)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            TextButton(
+                              onPressed: () {
+                                if (_registrationData != null) {
+                                  Navigator.pop(context); // Go back to register screen
+                                } else {
+                                  setState(() {
+                                    _codeSent = false;
+                                    _codeController.clear();
+                                    _verificationId = null;
+                                  });
+                                }
+                              },
+                              child: Text(
+                                'Change Phone',
+                                style: AppTypography.bodyMedium.copyWith(
+                                  color: AppColors.mediumBlue,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                _requestCode();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Code resent to your phone.')),
+                                );
+                              },
+                              child: Text(
+                                'Resend Code',
+                                style: AppTypography.bodyMedium.copyWith(
+                                  color: AppColors.mediumBlue,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
                       if (!_codeSent)
                         TextButton(
                           onPressed: () {

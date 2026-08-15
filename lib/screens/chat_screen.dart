@@ -65,18 +65,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             child: Row(
               children: [
                 ClipOval(
-                  child: Image.network(
-                    _doctorPhoto,
-                    width: 42,
-                    height: 42,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      width: 42,
-                      height: 42,
-                      color: AppColors.deepBlue,
-                      child: const Icon(Icons.person, color: AppColors.white, size: 22),
-                    ),
-                  ),
+                  child: _doctorPhoto.isNotEmpty && _doctorPhoto.startsWith('http')
+                      ? Image.network(
+                          _doctorPhoto,
+                          width: 42,
+                          height: 42,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            width: 42,
+                            height: 42,
+                            color: AppColors.deepBlue,
+                            child: const Icon(Icons.person, color: AppColors.white, size: 22),
+                          ),
+                        )
+                      : Container(
+                          width: 42,
+                          height: 42,
+                          color: AppColors.deepBlue,
+                          child: const Icon(Icons.person, color: AppColors.white, size: 22),
+                        ),
                 ),
                 const SizedBox(width: 12),
                 Column(

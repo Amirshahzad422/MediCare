@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../components/empty_state.dart';
 import '../components/loader.dart';
 import '../layouts/responsive_layout.dart';
@@ -13,38 +14,91 @@ import '../styles/typography.dart';
 class OrdersScreen extends ConsumerWidget {
   const OrdersScreen({super.key});
 
+  static const List<({String label, List<String> statuses})> _groups = [
+    (label: 'All', statuses: []),
+    (label: 'Placed', statuses: ['Placed', 'placed']),
+    (label: 'Packed', statuses: ['Packed', 'packed']),
+    (label: 'Shipped', statuses: ['Shipped', 'shipped']),
+    (label: 'Delivered', statuses: ['Delivered', 'delivered']),
+  ];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ordersAsync = ref.watch(ordersStreamProvider);
 
-    return ResponsiveLayout(
-      currentRoute: '/orders',
-      child: ordersAsync.when(
-        data: (orders) {
-          if (orders.isEmpty) {
-            return const EmptyState(
-              icon: Icons.receipt_long_outlined,
-              title: 'No orders yet',
-              subtitle: 'Order medicines from the pharmacy and track them here.',
-              actionLabel: 'Browse Pharmacy',
-              onAction: null,
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.all(20),
-            itemCount: orders.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 16),
-            itemBuilder: (context, index) {
-              final data = orders[index];
-              final order = OrderModel.fromMap(data, data['id'] ?? '');
-              return _OrderCard(order: order);
+    return DefaultTabController(
+      length: _groups.length,
+      child: ResponsiveLayout(
+        currentRoute: '/orders',
+        child: Scaffold(
+          backgroundColor: AppColors.white,
+          appBar: AppBar(
+            backgroundColor: AppColors.white,
+            elevation: 0,
+            title: Text('My Orders', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
+            centerTitle: true,
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(48),
+              child: Container(
+                alignment: Alignment.centerLeft,
+                child: const TabBar(
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  labelPadding: EdgeInsets.symmetric(horizontal: 16),
+                  dividerColor: Colors.transparent,
+                  indicatorColor: AppColors.deepBlue,
+                  labelColor: AppColors.deepBlue,
+                  unselectedLabelColor: AppColors.grey,
+                  tabs: [
+                    Tab(text: 'All'),
+                    Tab(text: 'Placed'),
+                    Tab(text: 'Packed'),
+                    Tab(text: 'Shipped'),
+                    Tab(text: 'Delivered'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          body: ordersAsync.when(
+            data: (orders) {
+              final mappedOrders = orders.map((data) {
+                return OrderModel.fromMap(data, data['id'] ?? '');
+              }).toList();
+
+              return TabBarView(
+                children: _groups.map((group) {
+                  final filtered = group.label == 'All'
+                      ? mappedOrders
+                      : mappedOrders
+                          .where((order) => group.statuses.contains(order.status))
+                          .toList();
+
+                  if (filtered.isEmpty) {
+                    return EmptyState(
+                      icon: Icons.receipt_long_outlined,
+                      title: 'No ${group.label.toLowerCase()} orders',
+                      subtitle: 'Orders in this stage will appear here.',
+                    );
+                  }
+
+                  return ListView.separated(
+                    padding: const EdgeInsets.all(20),
+                    itemCount: filtered.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 16),
+                    itemBuilder: (context, index) {
+                      return _OrderCard(order: filtered[index]);
+                    },
+                  );
+                }).toList(),
+              );
             },
-          );
-        },
-        loading: () => const LoadingIndicator(),
-        error: (err, stack) => const EmptyState(
-          icon: Icons.cloud_off,
-          title: 'Failed to load orders',
+            loading: () => const LoadingIndicator(),
+            error: (err, stack) => const EmptyState(
+              icon: Icons.cloud_off,
+              title: 'Failed to load orders',
+            ),
+          ),
         ),
       ),
     );
@@ -71,19 +125,23 @@ class _OrderCard extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Order ${order.orderNo}',
-                    style: AppTypography.titleLarge.copyWith(fontSize: 15),
-                  ),
-                  Text(
-                    _formatDate(order.createdAt),
-                    style: AppTypography.bodyMedium.copyWith(fontSize: 11),
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Order ${order.orderNo}',
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.titleLarge.copyWith(fontSize: 15),
+                    ),
+                    Text(
+                      _formatDate(order.createdAt),
+                      style: AppTypography.bodyMedium.copyWith(fontSize: 11),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
@@ -183,9 +241,48 @@ class _OrderCard extends ConsumerWidget {
               ),
             ],
           ),
+          if (order.status != 'Delivered') ...[
+            const SizedBox(height: 12),
+            Center(
+              child: TextButton.icon(
+                onPressed: () => _advanceStatus(context),
+                icon: const Icon(Icons.speed, size: 16, color: AppColors.mediumBlue),
+                label: Text(
+                  'Simulate Next Status Update',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.mediumBlue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  Future<void> _advanceStatus(BuildContext context) async {
+    final statuses = OrderModel.statusFlow;
+    final currentIndex = statuses.indexOf(order.status);
+    if (currentIndex < statuses.length - 1) {
+      final nextStatus = statuses[currentIndex + 1];
+      try {
+        await FirebaseFirestore.instance
+            .collection('orders')
+            .doc(order.id)
+            .update({'status': nextStatus});
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to update status: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    }
   }
 
   void _showDetail(BuildContext context) {

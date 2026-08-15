@@ -119,13 +119,17 @@ class SelfViewPlaceholder extends StatelessWidget {
                 ),
               ),
             )
-          : Image.network(
-              doctorPhoto,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => const Center(
-                child: Icon(Icons.person, color: AppColors.white, size: 30),
-              ),
-            ),
+          : doctorPhoto.isNotEmpty && doctorPhoto.startsWith('http')
+              ? Image.network(
+                  doctorPhoto,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => const Center(
+                    child: Icon(Icons.person, color: AppColors.white, size: 30),
+                  ),
+                )
+              : const Center(
+                  child: Icon(Icons.person, color: AppColors.white, size: 30),
+                ),
     );
   }
 }

@@ -13,7 +13,7 @@ class DoctorService {
       doctors.sort((a, b) => b.rating.compareTo(a.rating));
       return doctors;
     } catch (e) {
-      print('❌ getAllDoctors error: $e');
+      // print'❌ getAllDoctors error: $e');
       return [];
     }
   }
@@ -24,7 +24,7 @@ class DoctorService {
       if (!doc.exists) return null;
       return DoctorModel.fromMap(doc.data() ?? {}, doc.id);
     } catch (e) {
-      print('❌ getDoctorById error: $e');
+      // print'❌ getDoctorById error: $e');
       return null;
     }
   }
@@ -40,7 +40,7 @@ class DoctorService {
       final doc = snapshot.docs.first;
       return DoctorModel.fromMap(doc.data(), doc.id);
     } catch (e) {
-      print('❌ getDoctorByName error: $e');
+      // print'❌ getDoctorByName error: $e');
       return null;
     }
   }

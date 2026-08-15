@@ -214,19 +214,27 @@ class DoctorDetailsScreen extends ConsumerWidget {
                                 children: [
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(8),
-                                    child: Image.network(
-                                      similar.photo,
-                                      width: 44,
-                                      height: 44,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) => Container(
-                                        width: 44,
-                                        height: 44,
-                                        color: AppColors.iceBlue,
-                                        child: const Icon(Icons.person,
-                                            color: AppColors.deepBlue, size: 22),
-                                      ),
-                                    ),
+                                    child: similar.photo.isNotEmpty && similar.photo.startsWith('http')
+                                        ? Image.network(
+                                            similar.photo,
+                                            width: 44,
+                                            height: 44,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => Container(
+                                              width: 44,
+                                              height: 44,
+                                              color: AppColors.iceBlue,
+                                              child: const Icon(Icons.person,
+                                                  color: AppColors.deepBlue, size: 22),
+                                            ),
+                                          )
+                                        : Container(
+                                            width: 44,
+                                            height: 44,
+                                            color: AppColors.iceBlue,
+                                            child: const Icon(Icons.person,
+                                                color: AppColors.deepBlue, size: 22),
+                                          ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
@@ -306,16 +314,21 @@ class DoctorDetailsScreen extends ConsumerWidget {
               ],
             ),
             child: ClipOval(
-              child: Image.network(
-                doctor.photo,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: AppColors.iceBlue,
-                    child: const Icon(Icons.person, size: 60, color: AppColors.deepBlue),
-                  );
-                },
-              ),
+              child: doctor.photo.isNotEmpty && doctor.photo.startsWith('http')
+                  ? Image.network(
+                      doctor.photo,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: AppColors.iceBlue,
+                          child: const Icon(Icons.person, size: 60, color: AppColors.deepBlue),
+                        );
+                      },
+                    )
+                  : Container(
+                      color: AppColors.iceBlue,
+                      child: const Icon(Icons.person, size: 60, color: AppColors.deepBlue),
+                    ),
             ),
           ),
         ),

@@ -1,9 +1,7 @@
 class AppointmentStatus {
-  static const String pending = 'pending';
-  static const String accepted = 'accepted';
-  static const String cancelled = 'cancelled';
-  static const String rescheduled = 'rescheduled';
-  static const String completed = 'completed';
+  static const int upcoming = 1;
+  static const int past = 2;
+  static const int cancelled = 3;
 }
 
 class AppointmentModel {
@@ -16,7 +14,7 @@ class AppointmentModel {
   final String type;
   final double amount;
   final int consultationDuration;
-  final String status;
+  final int status;
   final DateTime? createdAt;
   final bool canBeCancelled;
 
@@ -36,6 +34,11 @@ class AppointmentModel {
   });
 
   factory AppointmentModel.fromMap(Map<String, dynamic> data, String documentId) {
+    final rawStatus = data['status'];
+    final parsedStatus = rawStatus is int 
+        ? rawStatus 
+        : (int.tryParse(rawStatus?.toString() ?? '') ?? AppointmentStatus.upcoming);
+
     return AppointmentModel(
       id: documentId,
       patientId: data['patientId'] ?? '',
@@ -46,9 +49,9 @@ class AppointmentModel {
       type: data['type'] ?? 'Video Call',
       amount: (data['amount'] ?? 0).toDouble(),
       consultationDuration: (data['consultationDuration'] ?? 30) as int,
-      status: data['status'] ?? AppointmentStatus.pending,
+      status: parsedStatus,
       createdAt: (data['createdAt'] as dynamic)?.toDate(),
-      canBeCancelled: data['canBeCancelled'] ?? (data['status'] != AppointmentStatus.accepted),
+      canBeCancelled: data['canBeCancelled'] ?? (parsedStatus == AppointmentStatus.upcoming),
     );
   }
 
@@ -63,7 +66,7 @@ class AppointmentModel {
       'amount': amount,
       'consultationDuration': consultationDuration,
       'status': status,
-      'canBeCancelled': status == AppointmentStatus.accepted ? false : true,
+      'canBeCancelled': canBeCancelled,
     };
   }
 }

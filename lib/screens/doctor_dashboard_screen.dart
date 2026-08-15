@@ -9,7 +9,6 @@ import '../components/dashboard_stats_card.dart';
 import '../components/quick_action_card.dart';
 import '../components/today_appointments_list.dart';
 import '../components/schedule_view.dart';
-import '../components/records_view.dart';
 import '../components/prescription_writer_sheet.dart';
 
 class DoctorDashboardScreen extends ConsumerStatefulWidget {
@@ -28,12 +27,13 @@ class _DoctorDashboardScreenState extends ConsumerState<DoctorDashboardScreen> {
       data: (profile) {
         if (profile == null) return const Center(child: Text('Please log in as a doctor.'));
         final doctorName = profile.name;
+        final doctorId = profile.uid;
 
         return Scaffold(
           backgroundColor: const Color(0xFFF8F9FA),
           body: SafeArea(
             child: RefreshIndicator(
-              onRefresh: () async => ref.refresh(doctorAppointmentsProvider(doctorName)),
+              onRefresh: () async => ref.refresh(doctorAppointmentsProvider(doctorId)),
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
                 child: Column(
@@ -65,7 +65,7 @@ class _DoctorDashboardScreenState extends ConsumerState<DoctorDashboardScreen> {
                     ),
                     const SizedBox(height: 28),
 
-                    DashboardStatsCard(doctorName: doctorName),
+                    DashboardStatsCard(doctorId: doctorId),
                     const SizedBox(height: 28),
 
                     IntrinsicHeight( // <-- ADD THIS
@@ -86,7 +86,7 @@ class _DoctorDashboardScreenState extends ConsumerState<DoctorDashboardScreen> {
                               icon: Icons.folder_shared_outlined,
                               title: 'Patient Records',
                               subtitle: 'View prescriptions',
-                              onTap: () => _openRecordsModal(context, doctorName),
+                              onTap: () => Navigator.pushNamed(context, '/doctor-records', arguments: doctorId),
                             ),
                           ),
                         ],
@@ -99,13 +99,13 @@ class _DoctorDashboardScreenState extends ConsumerState<DoctorDashboardScreen> {
                       children: [
                         Text('Today\'s Appointments', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
                         TextButton(
-                          onPressed: () => ref.refresh(doctorAppointmentsProvider(doctorName)),
+                          onPressed: () => ref.refresh(doctorAppointmentsProvider(doctorId)),
                           child: const Text('Refresh', style: TextStyle(color: AppColors.deepBlue)),
                         )
                       ],
                     ),
                     const SizedBox(height: 12),
-                    TodayAppointmentsList(doctorName: doctorName),
+                    TodayAppointmentsList(doctorId: doctorId, doctorName: doctorName),
                   ],
                 ),
               ),
@@ -152,31 +152,7 @@ class _DoctorDashboardScreenState extends ConsumerState<DoctorDashboardScreen> {
     );
   }
 
-  void _openRecordsModal(BuildContext context, String doctorName) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => SizedBox(
-        height: MediaQuery.of(context).size.height * 0.75,
-        child: Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12, bottom: 8),
-              width: 40, height: 4,
-              decoration: BoxDecoration(color: AppColors.lightBlue, borderRadius: BorderRadius.circular(4)),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Text('Patient Prescriptions', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
-            ),
-            Expanded(child: RecordsView(doctorName: doctorName)),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   void _openPrescriptionWriter(String doctorName, int role) {
     ref.read(userDocProvider.future).then((doc) {

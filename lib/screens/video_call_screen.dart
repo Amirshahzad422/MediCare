@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../components/chat_bubble.dart';
@@ -8,14 +10,8 @@ import '../services/call_service.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
 
-/// Real simultaneous video call screen.
-///
-/// Both patient and doctor navigate here from their Appointments / Dashboard.
-/// They share the SAME Firestore call room (keyed by appointment ID).
-/// When both have joined, the status becomes [CallService.statusConnected]
-/// and both screens show the live indicator.
-/// In-call chat is streamed from Firestore in real time — both parties see
-/// every message the moment it is sent.
+import '../components/prescription_writer_sheet.dart';
+
 class VideoCallScreen extends StatefulWidget {
   const VideoCallScreen({super.key});
 
@@ -26,30 +22,30 @@ class VideoCallScreen extends StatefulWidget {
 class _VideoCallScreenState extends State<VideoCallScreen> {
   final CallService _callService = CallService();
 
-  // Camera
-  CameraController? _cameraController;
-  bool _isCameraInitialized = false;
-  String? _cameraError;
+  RtcEngine? _engine;
+  int? _remoteUid;
+  bool _localUserJoined = false;
 
-  // UI state
+  static const String appId = "22cb40e9ffe04dc7a68abe82308e14f3";
+  static const String tempToken = "007eJxTYMh3dM7eyZnF+f00412RdXkGfG89ojdEeJtHCy5oOu3AnqjAYGSUnGRikGqZlpZqYJKSbJ5oZpGYlGphZGxgkWpokma8e3lDVkMgI8Ob64EsjAwQCOJzMOSmpmQmJxalMjAAAA7EH2g=";
+
+  String? _channelName;
+
   bool _isMuted = false;
   bool _isCameraOff = false;
   bool _showChat = false;
-  bool _joiningCall = true;   // spinner while we create/join the room
+  bool _joiningCall = true;
 
-  // Call-room data
   String? _callId;
   String _callStatus = CallService.statusScheduled;
   bool _isDoctor = false;
   String _myName = '';
 
-  // In-call chat
   final _msgController = TextEditingController();
   List<CallChatMessage> _messages = [];
   StreamSubscription<List<CallChatMessage>>? _chatSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _callSub;
 
-  // Route args
   late Map<String, dynamic> _app;
 
   @override
@@ -66,7 +62,6 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // Determine role from app data or UID
     _isDoctor = (_app['isDoctor'] as bool?) ?? false;
     _myName = user.displayName ?? (user.email ?? 'User');
 
@@ -77,10 +72,10 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       if (!mounted) return;
       setState(() {
         _callId = cid;
+        _channelName = "medicare";
         _joiningCall = false;
       });
 
-      // Stream call-room status
       _callSub = _callService.watchCall(cid).listen((snap) {
         if (!mounted) return;
         final data = snap.data();
@@ -88,58 +83,94 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         setState(() {
           _callStatus = data['status'] ?? CallService.statusScheduled;
         });
-        // If call was ended by the other party
         if (_callStatus == CallService.statusEnded) {
+          _updateAppointmentStatusToPast();
           _showEndedByOtherDialog();
         }
       });
 
-      // Stream messages
       _chatSub = _callService.watchMessages(cid).listen((msgs) {
         if (!mounted) return;
         setState(() => _messages = msgs);
       });
 
-      // Start camera
-      _initCamera();
-    } catch (e) {
+      await _initAgora();
+
+    } catch (e, st) {
+      debugPrint("CALL INIT ERROR: $e\n$st");
       if (!mounted) return;
       setState(() => _joiningCall = false);
     }
   }
 
-  Future<void> _initCamera() async {
-    try {
-      final cameras = await availableCameras();
-      if (cameras.isEmpty) {
-        setState(() => _cameraError = 'No camera found on this device.');
+  Future<void> _initAgora() async {
+    if (!kIsWeb) {
+      Map<Permission, PermissionStatus> statuses = await [
+        Permission.microphone,
+        Permission.camera,
+      ].request();
+
+      if (statuses[Permission.camera] != PermissionStatus.granted ||
+          statuses[Permission.microphone] != PermissionStatus.granted) {
+        debugPrint("PERMISSIONS DENIED");
         return;
       }
-      final front = cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.front,
-        orElse: () => cameras.first,
-      );
-      _cameraController = CameraController(front, ResolutionPreset.medium, enableAudio: true);
-      await _cameraController!.initialize();
-      if (!mounted) return;
-      setState(() => _isCameraInitialized = true);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _cameraError =
-          'Allow camera/mic permission in your browser or device settings.');
     }
+
+    _engine = createAgoraRtcEngine();
+    await _engine!.initialize(const RtcEngineContext(
+      appId: appId,
+      channelProfile: ChannelProfileType.channelProfileCommunication,
+    ));
+
+    _engine!.registerEventHandler(
+      RtcEngineEventHandler(
+        onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
+          debugPrint("AGORA JOIN SUCCESS: uid ${connection.localUid}");
+          setState(() {
+            _localUserJoined = true;
+          });
+        },
+        onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
+          debugPrint("AGORA REMOTE USER JOINED: uid $remoteUid");
+          setState(() {
+            _remoteUid = remoteUid;
+          });
+        },
+        onUserOffline: (RtcConnection connection, int remoteUid, UserOfflineReasonType reason) {
+          debugPrint("AGORA REMOTE USER LEFT: uid $remoteUid");
+          setState(() {
+            _remoteUid = null;
+          });
+        },
+        onError: (ErrorCodeType err, String msg) {
+          debugPrint("AGORA ERROR: $err - $msg");
+        },
+      ),
+    );
+
+    await _engine!.enableVideo();
+    await _engine!.startPreview();
+
+    await _engine!.joinChannel(
+      token: tempToken,
+      channelId: _channelName!,
+      uid: 0,
+      options: const ChannelMediaOptions(
+        clientRoleType: ClientRoleType.clientRoleBroadcaster,
+      ),
+    );
   }
 
   @override
   void dispose() {
-    _cameraController?.dispose();
     _msgController.dispose();
     _chatSub?.cancel();
     _callSub?.cancel();
+    _engine?.leaveChannel();
+    _engine?.release();
     super.dispose();
   }
-
-  // ─── Call room actions ───────────────────────────────────────────────────
 
   Future<void> _sendMessage() async {
     final text = _msgController.text.trim();
@@ -153,18 +184,55 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     );
   }
 
+  Future<void> _showPrescriptionWriter({bool exitAfter = false}) async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: PrescriptionWriterSheet(
+          doctorName: _app['doctorName'] ?? 'Doctor',
+          specialty: _app['specialty'] ?? 'General Physician',
+          doctorPhoto: _app['doctorPhoto'] ?? '',
+          prefilledPatientId: _app['patientId'],
+          prefilledPatientName: _app['patientName'],
+        ),
+      ),
+    );
+    if (exitAfter && mounted) {
+      Navigator.pop(context); // Exit call screen
+    }
+  }
+
+  Future<void> _updateAppointmentStatusToPast() async {
+    try {
+      final appointmentId = _app['id'] as String?;
+      if (appointmentId != null && appointmentId.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('appointments')
+            .doc(appointmentId)
+            .update({'status': 2});
+      }
+    } catch (e) {
+      debugPrint("Error updating appointment status to past: $e");
+    }
+  }
+
   Future<void> _endCall() async {
     if (_callId == null) {
       Navigator.pop(context);
       return;
     }
+    await _updateAppointmentStatusToPast();
     await _callService.endCall(_callId!, endedBy: _isDoctor ? 'doctor' : 'patient');
     if (!mounted) return;
     _showCompletionDialog();
   }
 
   void _showEndedByOtherDialog() {
-    // Prevent duplicate dialogs
     _callSub?.cancel();
     showDialog(
       context: context,
@@ -181,14 +249,32 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         ),
         content: const Text('The other party has ended the consultation.'),
         actions: [
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);  // close dialog
-              Navigator.pop(context);  // leave call screen
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepBlue),
-            child: const Text('OK', style: TextStyle(color: AppColors.white)),
-          ),
+          if (_isDoctor) ...[
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pop(context);
+              },
+              child: const Text('Later', style: TextStyle(color: AppColors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _showPrescriptionWriter(exitAfter: true);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepBlue),
+              child: const Text('Write Prescription', style: TextStyle(color: AppColors.white)),
+            ),
+          ] else ...[
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepBlue),
+              child: const Text('OK', style: TextStyle(color: AppColors.white)),
+            ),
+          ],
         ],
       ),
     );
@@ -209,11 +295,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
             const Icon(Icons.check_circle_outline, color: Colors.green, size: 28),
             const SizedBox(width: 8),
             Flexible(
-              child: Text(
-                'Consultation Complete',
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.titleLarge.copyWith(fontSize: 18),
-              ),
+              child: Text('Consultation Complete', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
             ),
           ],
         ),
@@ -224,37 +306,60 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
           style: AppTypography.bodyLarge,
         ),
         actions: [
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context); // close dialog
-              Navigator.pop(context); // leave call screen
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.deepBlue,
-              foregroundColor: AppColors.white,
-              minimumSize: const Size(100, 44),
+          if (_isDoctor) ...[
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pop(context);
+              },
+              child: const Text('Later', style: TextStyle(color: AppColors.grey)),
             ),
-            child: const Text('OK'),
-          ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _showPrescriptionWriter(exitAfter: true);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepBlue, foregroundColor: AppColors.white),
+              child: const Text('Write Prescription'),
+            ),
+          ] else ...[
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepBlue, foregroundColor: AppColors.white),
+              child: const Text('OK'),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  // ─── Build ────────────────────────────────────────────────────────────────
+  void _toggleMute() {
+    setState(() {
+      _isMuted = !_isMuted;
+    });
+    _engine?.muteLocalAudioStream(_isMuted);
+  }
+
+  void _toggleCamera() {
+    setState(() {
+      _isCameraOff = !_isCameraOff;
+    });
+    _engine?.muteLocalVideoStream(_isCameraOff);
+  }
 
   @override
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args == null || args is! Map<String, dynamic>) {
       return Scaffold(
-        backgroundColor: AppColors.darkNavy,
-        body: Center(
-          child: Text(
-            'No consultation session found.',
-            style: AppTypography.bodyLarge.copyWith(color: AppColors.white),
-          ),
-        ),
+          backgroundColor: AppColors.darkNavy,
+          body: Center(
+              child: Text('Error: No session found.', style: AppTypography.bodyLarge.copyWith(color: AppColors.white))
+          )
       );
     }
 
@@ -271,26 +376,34 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            // Remote video background (doctor photo as stand-in for remote stream)
             Positioned.fill(
-              child: Image.network(
-                doctorPhoto,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  color: AppColors.darkNavy,
-                  child: const Icon(Icons.person, size: 100, color: AppColors.white),
+              child: _remoteUid != null && _engine != null
+                  ? AgoraVideoView(
+                controller: VideoViewController.remote(
+                  rtcEngine: _engine!,
+                  canvas: VideoCanvas(uid: _remoteUid),
+                  connection: RtcConnection(channelId: _channelName),
                 ),
-              ),
+              )
+                  : (doctorPhoto.isNotEmpty && doctorPhoto.startsWith('http'))
+                      ? Image.network(
+                          doctorPhoto,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            color: AppColors.darkNavy,
+                            child: const Icon(Icons.person, size: 100, color: AppColors.white),
+                          ),
+                        )
+                      : Container(
+                          color: AppColors.darkNavy,
+                          child: const Icon(Icons.person, size: 100, color: AppColors.white),
+                        ),
             ),
-
-            // Overlay tint
             Positioned.fill(
               child: Container(
-                color: AppColors.darkNavy.withValues(alpha: isConnected ? 0.35 : 0.85),
+                  color: AppColors.darkNavy.withValues(alpha: (_remoteUid != null) ? 0.0 : 0.85)
               ),
             ),
-
-            // ─── Joining spinner ───────────────────────────────────────────
             if (_joiningCall)
               const Positioned.fill(
                 child: Center(
@@ -299,14 +412,11 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                     children: [
                       CircularProgressIndicator(color: AppColors.white),
                       SizedBox(height: 20),
-                      Text('Connecting to call room…',
-                          style: TextStyle(color: AppColors.white, fontSize: 16)),
+                      Text('Connecting to call room…', style: TextStyle(color: AppColors.white, fontSize: 16)),
                     ],
                   ),
                 ),
               ),
-
-            // ─── Waiting for other party ───────────────────────────────────
             if (!_joiningCall && !isConnected && _callStatus != CallService.statusEnded)
               Positioned.fill(
                 child: Center(
@@ -316,11 +426,8 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                       CircleAvatar(
                         radius: 50,
                         backgroundColor: AppColors.iceBlue,
-                        backgroundImage:
-                            doctorPhoto.isNotEmpty ? NetworkImage(doctorPhoto) : null,
-                        child: doctorPhoto.isEmpty
-                            ? const Icon(Icons.person, size: 48, color: AppColors.deepBlue)
-                            : null,
+                        backgroundImage: (doctorPhoto.isNotEmpty && doctorPhoto.startsWith('http')) ? NetworkImage(doctorPhoto) : null,
+                        child: (doctorPhoto.isEmpty || !doctorPhoto.startsWith('http')) ? const Icon(Icons.person, size: 48, color: AppColors.deepBlue) : null,
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -341,66 +448,44 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                   ),
                 ),
               ),
-
-            // ─── Top bar: LIVE badge + close ──────────────────────────────
             if (!_joiningCall)
               Positioned(
-                top: 20,
-                left: 20,
-                right: 20,
+                top: 20, left: 20, right: 20,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    if (isConnected)
+                    if (_remoteUid != null)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: AppColors.darkNavy.withValues(alpha: 0.6),
-                          borderRadius: BorderRadius.circular(20),
+                            color: AppColors.darkNavy.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(20)
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: Colors.green,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
+                            Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle)),
                             const SizedBox(width: 8),
-                            Text(
-                              'Live',
-                              style: AppTypography.bodyMedium
-                                  .copyWith(color: AppColors.white, fontWeight: FontWeight.bold),
-                            ),
+                            Text('Live', style: AppTypography.bodyMedium.copyWith(color: AppColors.white, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       )
-                    else
-                      const SizedBox(),
+                    else const SizedBox(),
                     IconButton(
                       icon: const Icon(Icons.close, color: AppColors.white, size: 28),
                       onPressed: () {
-                        if (isConnected) {
-                          _endCall();
-                        } else {
-                          Navigator.pop(context);
-                        }
+                        if (isConnected) _endCall();
+                        else Navigator.pop(context);
                       },
                     ),
                   ],
                 ),
               ),
-
-            // ─── Self-camera pip ──────────────────────────────────────────
             if (isConnected)
               Positioned(
                 right: 20,
                 bottom: _showChat ? 320 : 120,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
+                child: Container(
                   width: 110,
                   height: 150,
                   decoration: BoxDecoration(
@@ -409,22 +494,25 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                     border: Border.all(color: AppColors.iceBlue, width: 2),
                   ),
                   child: ClipRRect(
-                    borderRadius: const BorderRadius.all(Radius.circular(10)),
-                    child: _buildSelfCamera(),
+                    borderRadius: BorderRadius.circular(10),
+                    child: _isCameraOff
+                        ? const Center(child: Icon(Icons.videocam_off, color: AppColors.white, size: 30))
+                        : (_localUserJoined && _engine != null)
+                        ? AgoraVideoView(
+                      controller: VideoViewController(
+                        rtcEngine: _engine!,
+                        canvas: const VideoCanvas(uid: 0),
+                      ),
+                    )
+                        : const Center(child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2)),
                   ),
                 ),
               ),
-
-            // ─── Controls ─────────────────────────────────────────────────
             if (isConnected)
               Positioned(
-                left: 20,
-                right: 20,
-                bottom: 30,
+                left: 20, right: 20, bottom: 30,
                 child: _buildControls(),
               ),
-
-            // ─── Chat panel ───────────────────────────────────────────────
             if (isConnected && _showChat) _buildChatPanel(doctorName, doctorPhoto),
           ],
         ),
@@ -432,52 +520,23 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     );
   }
 
-  Widget _buildSelfCamera() {
-    if (_isCameraOff) {
-      return Container(
-        color: AppColors.deepBlue,
-        child: const Center(child: Icon(Icons.videocam_off, color: AppColors.white, size: 30)),
-      );
-    }
-    if (_cameraError != null) {
-      return Container(
-        color: AppColors.deepBlue,
-        padding: const EdgeInsets.all(8),
-        child: Center(
-          child: Text(
-            _cameraError!,
-            textAlign: TextAlign.center,
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.white, fontSize: 10),
-          ),
-        ),
-      );
-    }
-    if (_isCameraInitialized && _cameraController != null) {
-      return CameraPreview(_cameraController!);
-    }
-    return const Center(child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2));
-  }
-
   Widget _buildControls() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.darkNavy.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(40),
-      ),
+      decoration: BoxDecoration(color: AppColors.darkNavy.withValues(alpha: 0.7), borderRadius: BorderRadius.circular(40)),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _controlBtn(
             icon: _isMuted ? Icons.mic_off : Icons.mic,
             active: !_isMuted,
-            onTap: () => setState(() => _isMuted = !_isMuted),
+            onTap: _toggleMute,
             tooltip: _isMuted ? 'Unmute' : 'Mute',
           ),
           _controlBtn(
             icon: _isCameraOff ? Icons.videocam_off : Icons.videocam,
             active: !_isCameraOff,
-            onTap: () => setState(() => _isCameraOff = !_isCameraOff),
+            onTap: _toggleCamera,
             tooltip: _isCameraOff ? 'Camera On' : 'Camera Off',
           ),
           _controlBtn(
@@ -486,16 +545,18 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
             onTap: () => setState(() => _showChat = !_showChat),
             tooltip: 'Chat',
           ),
-          // End call
+          if (_isDoctor)
+            _controlBtn(
+              icon: Icons.assignment_outlined,
+              active: true,
+              onTap: _showPrescriptionWriter,
+              tooltip: 'Write Prescription',
+            ),
           GestureDetector(
             onTap: _endCall,
             child: Container(
-              width: 54,
-              height: 54,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.error,
-              ),
+              width: 54, height: 54,
+              decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.error),
               child: const Icon(Icons.call_end, color: AppColors.white, size: 26),
             ),
           ),
@@ -504,12 +565,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     );
   }
 
-  Widget _controlBtn({
-    required IconData icon,
-    required bool active,
-    required VoidCallback onTap,
-    required String tooltip,
-  }) {
+  Widget _controlBtn({required IconData icon, required bool active, required VoidCallback onTap, required String tooltip}) {
     return Tooltip(
       message: tooltip,
       child: GestureDetector(
@@ -546,7 +602,6 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         ),
         child: Column(
           children: [
-            // Header
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: const BoxDecoration(
@@ -563,33 +618,31 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                 ],
               ),
             ),
-            // Messages
             Expanded(
               child: _messages.isEmpty
                   ? Center(
-                      child: Text(
-                        'No messages yet.\nSay hello!',
-                        textAlign: TextAlign.center,
-                        style: AppTypography.bodyMedium.copyWith(color: AppColors.lightBlue),
-                      ),
-                    )
+                child: Text(
+                  'No messages yet.\nSay hello!',
+                  textAlign: TextAlign.center,
+                  style: AppTypography.bodyMedium.copyWith(color: AppColors.lightBlue),
+                ),
+              )
                   : ListView.builder(
-                      padding: const EdgeInsets.all(12),
-                      itemCount: _messages.length,
-                      itemBuilder: (ctx, i) {
-                        final msg = _messages[i];
-                        final isMine = _isDoctor
-                            ? msg.senderRole == 'doctor'
-                            : msg.senderRole == 'patient';
-                        return ChatBubble(
-                          text: msg.text,
-                          isMine: isMine,
-                          senderName: isMine ? 'You' : msg.senderName,
-                        );
-                      },
-                    ),
+                padding: const EdgeInsets.all(12),
+                itemCount: _messages.length,
+                itemBuilder: (ctx, i) {
+                  final msg = _messages[i];
+                  final isMine = _isDoctor
+                      ? msg.senderRole == 'doctor'
+                      : msg.senderRole == 'patient';
+                  return ChatBubble(
+                    text: msg.text,
+                    isMine: isMine,
+                    senderName: isMine ? 'You' : msg.senderName,
+                  );
+                },
+              ),
             ),
-            // Input
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: Row(
@@ -601,8 +654,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                       decoration: InputDecoration(
                         hintText: 'Type a message…',
                         hintStyle: AppTypography.bodyMedium,
-                        contentPadding:
-                            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
                         ),

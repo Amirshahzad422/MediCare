@@ -6,16 +6,20 @@ import '../styles/typography.dart';
 import 'loader.dart';
 
 class DashboardStatsCard extends ConsumerWidget {
-  final String doctorName;
-  const DashboardStatsCard({super.key, required this.doctorName});
+  final String doctorId;
+  const DashboardStatsCard({super.key, required this.doctorId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final appointmentsAsync = ref.watch(doctorAppointmentsProvider(doctorName));
+    final appointmentsAsync = ref.watch(doctorAppointmentsProvider(doctorId));
 
     return appointmentsAsync.when(
       data: (appointments) {
-        final completed = appointments.where((app) => app['status'] == 'completed').toList();
+        final completed = appointments.where((app) {
+          final raw = app['status'];
+          final status = raw is int ? raw : (int.tryParse(raw?.toString() ?? '') ?? -1);
+          return status == 2;
+        }).toList();
         final totalEarnings = completed.fold<double>(0, (sum, app) => sum + ((app['amount'] ?? 0) as num).toDouble());
 
         final now = DateTime.now();

@@ -65,15 +65,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
       await FirebaseFirestore.instance.collection('appointments').add({
         'patientId': user.uid,
         'patientName': user.displayName ?? 'Patient',
-        'doctorId': '',
-        'doctorName': doctor.name,
-        'specialty': doctor.specialty,
-        'doctorPhoto': doctor.photo,
+        'doctorId': doctor.id,
         'date': '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
         'slot': slot,
         'type': type,
         'amount': total,
-        'status': 'upcoming',
+        'status': 1,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -84,28 +81,49 @@ class _PaymentScreenState extends State<PaymentScreen> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green),
-              SizedBox(width: 8),
-              Text('Booking Confirmed!'),
-            ],
-          ),
-          content: Text(
-            'Your appointment with ${doctor.name} on ${date.day}/${date.month}/${date.year} at $slot has been booked.',
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pushNamedAndRemoveUntil(context, '/dashboard', (route) => false);
-              },
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.deepBlue, foregroundColor: AppColors.white),
-              child: const Text('View Appointments'),
+        builder: (context) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: AppColors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.check_circle, color: Colors.green, size: 64),
+                const SizedBox(height: 16),
+                Text(
+                  'Booking Confirmed!',
+                  style: AppTypography.titleLarge.copyWith(fontSize: 22, color: AppColors.deepBlue),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Your appointment with ${doctor.name} on ${date.day}/${date.month}/${date.year} at $slot has been successfully booked.',
+                  textAlign: TextAlign.center,
+                  style: AppTypography.bodyLarge.copyWith(color: AppColors.mediumBlue, height: 1.4),
+                ),
+                const SizedBox(height: 28),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      '/dashboard',
+                      (route) => false,
+                      arguments: {'initialIndex': 1},
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.deepBlue,
+                    foregroundColor: AppColors.white,
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text('View Appointments', style: AppTypography.buttonText),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       );
     } catch (e) {

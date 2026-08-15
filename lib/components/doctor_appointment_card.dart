@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../providers/profile_provider.dart';
 import 'prescription_writer_sheet.dart';
 import '../services/call_service.dart';
@@ -23,10 +24,25 @@ class DoctorAppointmentCard extends StatefulWidget {
 class _DoctorAppointmentCardState extends State<DoctorAppointmentCard> {
   bool _joiningCall = false;
 
+  static int parseStatus(dynamic raw) {
+    if (raw is int) return raw;
+    final str = raw?.toString().toLowerCase();
+    if (str == '1' || str == 'pending' || str == 'accepted' || str == 'rescheduled') {
+      return 1;
+    }
+    if (str == '2' || str == 'completed') {
+      return 2;
+    }
+    if (str == '3' || str == 'cancelled') {
+      return 3;
+    }
+    return int.tryParse(str ?? '') ?? -1;
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = widget.app;
-    final status = app['status'] ?? 'upcoming';
+    final status = parseStatus(app['status']);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -83,11 +99,11 @@ class _DoctorAppointmentCardState extends State<DoctorAppointmentCard> {
               _statusBadge(status),
             ],
           ),
-          if (status == 'upcoming' || status == 'completed') ...[
+          if (status == 1 || status == 2) ...[
             const SizedBox(height: 16),
             Row(
               children: [
-                if (status == 'upcoming')
+                if (status == 1) ...[
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: _joiningCall ? null : () => _joinCall(context),
@@ -115,26 +131,44 @@ class _DoctorAppointmentCardState extends State<DoctorAppointmentCard> {
                       ),
                     ),
                   ),
-                if (status == 'upcoming') const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _openPrescriptionWriter(context),
-                    icon: const Icon(Icons.edit_document, size: 18),
-                    label: Text(
-                      'Write Rx',
-                      style: AppTypography.buttonText.copyWith(fontSize: 13),
+                  const SizedBox(width: 8),
+                  Tooltip(
+                    message: 'Cancel',
+                    child: OutlinedButton(
+                      onPressed: () => _cancel(context, app),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        side: const BorderSide(color: AppColors.error),
+                        minimumSize: const Size(44, 40),
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Icon(Icons.cancel_outlined, size: 18),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.iceBlue,
-                      foregroundColor: AppColors.deepBlue,
-                      elevation: 0,
-                      minimumSize: const Size(0, 40),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                  ),
+                ],
+                if (status == 2)
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _openPrescriptionWriter(context),
+                      icon: const Icon(Icons.edit_document, size: 18),
+                      label: Text(
+                        'Write Rx',
+                        style: AppTypography.buttonText.copyWith(fontSize: 13),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.iceBlue,
+                        foregroundColor: AppColors.deepBlue,
+                        elevation: 0,
+                        minimumSize: const Size(0, 40),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ],
@@ -172,25 +206,36 @@ class _DoctorAppointmentCardState extends State<DoctorAppointmentCard> {
       builder: (ctx) => Consumer(
         builder: (context, ref, child) {
           final docAsync = ref.watch(userDocProvider);
+          final rawName = docAsync.value?['name'] ?? widget.doctorName;
+          final doctorName = rawName.startsWith('Dr.') ? rawName : 'Dr. $rawName';
           final specialty = docAsync.value?['specialty'] ?? 'General Physician';
           final photo = docAsync.value?['photo'] ?? '';
 
           return PrescriptionWriterSheet(
-            doctorName: widget.doctorName,
+            doctorName: doctorName,
             specialty: specialty,
             doctorPhoto: photo,
+            prefilledPatientId: widget.app['patientId'],
+            prefilledPatientName: widget.app['patientName'],
           );
         },
       ),
     );
   }
 
-  Widget _statusBadge(String status) {
-    final color = status == 'completed'
+  Widget _statusBadge(int status) {
+    final color = status == 2
         ? Colors.green
-        : status == 'cancelled'
+        : status == 3
         ? AppColors.error
         : AppColors.deepBlue;
+
+    String statusText = '';
+    if (status == 1) statusText = 'UPCOMING';
+    else if (status == 2) statusText = 'PAST';
+    else if (status == 3) statusText = 'CANCELLED';
+    else statusText = 'UNKNOWN';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -198,7 +243,7 @@ class _DoctorAppointmentCardState extends State<DoctorAppointmentCard> {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        status.toUpperCase(),
+        statusText,
         style: AppTypography.bodyMedium.copyWith(
           fontSize: 9,
           color: color,
@@ -206,5 +251,61 @@ class _DoctorAppointmentCardState extends State<DoctorAppointmentCard> {
         ),
       ),
     );
+  }
+
+  Future<void> _cancel(BuildContext context, Map<String, dynamic> app) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Cancel Appointment?',
+            style: AppTypography.titleLarge.copyWith(fontSize: 18)),
+        content: Text(
+          'Your appointment with ${app['patientName']} on ${app['date']} at ${app['slot']} '
+              'will be cancelled.',
+          style: AppTypography.bodyLarge,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Keep it',
+                style: AppTypography.bodyMedium.copyWith(color: AppColors.lightBlue)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text('Cancel Booking',
+                style: AppTypography.buttonText.copyWith(fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('appointments')
+          .doc(app['id'])
+          .update({'status': 3});
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Appointment cancelled.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to cancel. Please try again.')),
+        );
+      }
+    }
   }
 }

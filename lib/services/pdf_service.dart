@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -10,6 +11,38 @@ class PdfService {
 
     final medicines = (presc['medicines'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
+
+    // ── Fetch patient age & gender from Firestore using patientId ──
+    // Age/gender are stored in the 'patients' collection by profile_service.dart
+    String patientAge = presc['patientAge']?.toString() ?? 'N/A';
+    String patientGender = presc['patientGender']?.toString() ?? 'N/A';
+    final patientId = presc['patientId']?.toString();
+    if (patientId != null && patientId.isNotEmpty) {
+      try {
+        // Primary: patients collection
+        final patSnap = await FirebaseFirestore.instance
+            .collection('patients')
+            .doc(patientId)
+            .get();
+        final patData = patSnap.data();
+        if (patData != null) {
+          patientAge = patData['age']?.toString() ?? patientAge;
+          patientGender = patData['gender']?.toString() ?? patientGender;
+        }
+        // Fallback: users collection (in case data was saved there)
+        if (patientAge == 'N/A' || patientGender == 'N/A') {
+          final userSnap = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(patientId)
+              .get();
+          final userData = userSnap.data();
+          if (userData != null) {
+            if (patientAge == 'N/A') patientAge = userData['age']?.toString() ?? 'N/A';
+            if (patientGender == 'N/A') patientGender = userData['gender']?.toString() ?? 'N/A';
+          }
+        }
+      } catch (_) {}
+    }
 
     pdf.addPage(
       pw.Page(
@@ -89,10 +122,11 @@ class PdfService {
                   // Patient
                   pw.Expanded(
                     child: _infoBox(
-                      title: 'Patient',
+                      title: 'Patient Details',
                       lines: [
                         presc['patientName'] ?? 'Patient',
-                        'Patient ID: ${(presc['patientId'] ?? '').toString().substring(0, 8)}…',
+                        'Age: $patientAge',
+                        'Gender: $patientGender',
                       ],
                     ),
                   ),
@@ -135,7 +169,7 @@ class PdfService {
                     children: [
                       _tableHeader('Medicine'),
                       _tableHeader('Dosage'),
-                      _tableHeader('Duration'),
+                      _tableHeader('Frequency'),
                     ],
                   ),
                   // Data rows
@@ -150,7 +184,7 @@ class PdfService {
                       children: [
                         _tableCell(med['name'] ?? ''),
                         _tableCell(med['dosage'] ?? ''),
-                        _tableCell(med['duration'] ?? ''),
+                        _tableCell(med['frequency'] ?? med['duration'] ?? ''),
                       ],
                     );
                   }),

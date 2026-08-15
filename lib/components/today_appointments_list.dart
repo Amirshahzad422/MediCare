@@ -6,12 +6,17 @@ import 'empty_state.dart';
 import 'loader.dart';
 
 class TodayAppointmentsList extends ConsumerWidget {
+  final String doctorId;
   final String doctorName;
-  const TodayAppointmentsList({super.key, required this.doctorName});
+  const TodayAppointmentsList({
+    super.key,
+    required this.doctorId,
+    required this.doctorName,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final appointmentsAsync = ref.watch(doctorAppointmentsProvider(doctorName));
+    final appointmentsAsync = ref.watch(doctorAppointmentsProvider(doctorId));
 
     return appointmentsAsync.when(
       data: (appointments) {

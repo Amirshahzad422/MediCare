@@ -18,12 +18,9 @@ class PatientOnboardingScreen extends ConsumerStatefulWidget {
 class _PatientOnboardingScreenState
     extends ConsumerState<PatientOnboardingScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
-  final _dateOfBirthController = TextEditingController();
+  final _ageController = TextEditingController();
   String? _selectedGender;
-  int _age = 0;
 
   bool _isLoading = false;
 
@@ -31,40 +28,9 @@ class _PatientOnboardingScreenState
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _phoneController.dispose();
     _addressController.dispose();
-    _dateOfBirthController.dispose();
+    _ageController.dispose();
     super.dispose();
-  }
-
-  Future<void> _selectDateOfBirth(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.light().copyWith(
-            colorScheme: const ColorScheme.light(primary: AppColors.deepBlue),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked != null) {
-      setState(() {
-        _dateOfBirthController.text =
-        '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
-        _age = DateTime.now().year - picked.year;
-        if (DateTime.now().month < picked.month ||
-            (DateTime.now().month == picked.month &&
-                DateTime.now().day < picked.day)) {
-          _age--;
-        }
-      });
-    }
   }
 
   Future<void> _completeOnboarding() async {
@@ -78,15 +44,19 @@ class _PatientOnboardingScreenState
       return;
     }
 
+    final userProfile = await ref.read(userProfileProvider.future);
+    final patientName = userProfile?.name ?? user.displayName ?? 'Patient';
+    final patientPhone = userProfile?.phone ?? '';
+
     final service = ref.read(profileServiceProvider);
     final success = await service.updatePatientProfile(
-      name: _nameController.text.trim(),
-      phone: _phoneController.text.trim(),
+      name: patientName,
+      phone: patientPhone,
       address: _addressController.text.trim(),
-      dateOfBirth: _dateOfBirthController.text.trim(),
       gender: _selectedGender ?? '',
-      age: _age,
+      age: int.tryParse(_ageController.text.trim()) ?? 0,
       photo: '',
+      email: user.email ?? '',
       isOnboardingComplete: true,
     );
 
@@ -133,39 +103,19 @@ class _PatientOnboardingScreenState
               ),
               const SizedBox(height: 24),
               _buildInput(
-                'Full Name',
-                _nameController,
-                Icons.person_outline,
-                isRequired: true,
-                validator: (v) =>
-                v == null || v.trim().isEmpty ? 'Enter your name' : null,
-              ),
-              _buildInput(
-                'Phone',
-                _phoneController,
-                Icons.phone_outlined,
-                isRequired: false,
-                textInputType: TextInputType.phone,
-              ),
-              _buildInput(
                 'Address',
                 _addressController,
                 Icons.place_outlined,
                 isRequired: false,
               ),
-              _buildDateOfBirthField(),
+              _buildInput(
+                'Age',
+                _ageController,
+                Icons.cake_outlined,
+                isRequired: true,
+                isNumber: true,
+              ),
               _buildGenderDropdown(),
-              if (_age > 0)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8, bottom: 16),
-                  child: Text(
-                    'Age: $_age years',
-                    style: AppTypography.bodyLarge.copyWith(
-                      color: AppColors.deepBlue,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
               const SizedBox(height: 32),
               SharedButton(
                 label: 'Complete Profile',
@@ -215,50 +165,7 @@ class _PatientOnboardingScreenState
     );
   }
 
-  Widget _buildDateOfBirthField() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Date of Birth',
-            style: AppTypography.bodyMedium.copyWith(
-              fontWeight: FontWeight.w600,
-              color: AppColors.darkNavy,
-            ),
-          ),
-          const SizedBox(height: 6),
-          GestureDetector(
-            onTap: () => _selectDateOfBirth(context),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              decoration: BoxDecoration(
-                border: Border.all(color: AppColors.lightBlue),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.calendar_month, color: AppColors.mediumBlue),
-                  const SizedBox(width: 12),
-                  Text(
-                    _dateOfBirthController.text.isEmpty
-                        ? 'Select date of birth'
-                        : _dateOfBirthController.text,
-                    style: AppTypography.bodyLarge.copyWith(
-                      color: _dateOfBirthController.text.isEmpty
-                          ? AppColors.lightBlue
-                          : AppColors.darkNavy,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   Widget _buildGenderDropdown() {
     return Padding(

@@ -35,6 +35,11 @@ class AppTypography {
     fontWeight: FontWeight.w400,
     color: AppColors.lightBlue,
   );
+  static TextStyle get bodySmall => GoogleFonts.plusJakartaSans(
+    fontSize: 12,
+    fontWeight: FontWeight.w300,
+    color: AppColors.lightBlue,
+  );
 
   static TextStyle get buttonText => GoogleFonts.plusJakartaSans(
     fontSize: 14,

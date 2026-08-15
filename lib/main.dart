@@ -31,6 +31,10 @@ import 'screens/doctor_onboarding_screen.dart';
 import 'screens/notification_screen.dart';
 import 'screens/review_screen.dart';
 import 'screens/patient_onboarding_screen.dart';
+import 'screens/checkout_screen.dart';
+import 'screens/medicine_detail_screen.dart';
+import 'screens/doctor_records_screen.dart';
+import 'utils/db_seeder.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -131,7 +135,10 @@ class _MediCareAppState extends ConsumerState<MediCareApp> {
         '/chat': (context) => const ChatScreen(),
         '/prescriptions': (context) => const PrescriptionsScreen(),
         '/pharmacy': (context) => const PharmacyScreen(),
+        '/medicine-detail': (context) => const MedicineDetailScreen(),
+        '/doctor-records': (context) => const DoctorRecordsScreen(),
         '/cart': (context) => const CartScreen(),
+        '/checkout': (context) => const CheckoutScreen(),
         '/orders': (context) => const OrdersScreen(),
         '/profile': (context) => const ProfileScreen(),
         '/doctor-dashboard': (context) => const DoctorDashboardScreen(),

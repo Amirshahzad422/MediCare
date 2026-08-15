@@ -34,10 +34,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     final authService = ref.read(authServiceProvider);
-    final user = await authService.loginUser(
-      _emailController.text.trim(),
-      _passwordController.text.trim(),
-    );
+    String email = _emailController.text.trim();
+    String password = _passwordController.text.trim();
+    final user = await authService.loginUser(email, password);
 
     if (!mounted) return;
 
@@ -54,16 +53,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  void _forgotPassword() {
-    final email = _emailController.text.trim();
-    if (email.isEmpty) {
+  void _forgotPassword() async {
+    final emailOrPhone = _emailController.text.trim();
+    if (emailOrPhone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter your email first to reset the password.')),
+        const SnackBar(content: Text('Enter your email or phone first to reset the password.')),
       );
       return;
     }
 
-    FirebaseAuth.instance.sendPasswordResetEmail(email: email).then((_) {
+    FirebaseAuth.instance.sendPasswordResetEmail(email: emailOrPhone).then((_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -129,12 +128,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         const SizedBox(height: 8),
                         Text(
                           'Please Login to Online Consultant',
-                          style: AppTypography.bodyMedium.copyWith(color: Colors.black54),
+                          style: AppTypography.bodySmall.copyWith(color: Colors.black54),
                         ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 16),
                         Text(
                           'Email*',
-                          style: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.bold),
+                          style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 8),
                         TextFormField(
@@ -142,8 +141,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           style: AppTypography.bodyLarge,
                           decoration: InputDecoration(
                             hintText: 'anna@gmail.com',
-                            hintStyle: AppTypography.bodyMedium.copyWith(color: Colors.black38),
-                            prefixIcon: const Icon(Icons.email_outlined, color: AppColors.mediumBlue),
+                            hintStyle: AppTypography.bodySmall.copyWith(color: Colors.black38),
+                            prefixIcon: const Icon(Icons.person_outline, color: AppColors.mediumBlue),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: const BorderSide(color: AppColors.lightBlue),
@@ -168,7 +167,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         const SizedBox(height: 24),
                         Text(
                           'Password*',
-                          style: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.bold),
+                          style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 8),
                         TextFormField(
@@ -177,7 +176,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           obscureText: _obscurePassword,
                           decoration: InputDecoration(
                             hintText: 'Password',
-                            hintStyle: AppTypography.bodyMedium.copyWith(color: Colors.black38),
+                            hintStyle: AppTypography.bodySmall.copyWith(color: Colors.black38),
                             prefixIcon: const Icon(Icons.lock_outline, color: AppColors.mediumBlue),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -217,7 +216,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             onTap: _forgotPassword,
                             child: Text(
                               'Forgot Password?',
-                              style: AppTypography.bodyMedium.copyWith(
+                              style: AppTypography.bodySmall.copyWith(
                                 color: AppColors.mediumBlue,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -244,13 +243,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           )
                               : Text('Login', style: AppTypography.buttonText),
                         ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            const Expanded(child: Divider(color: AppColors.lightBlue)),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16),
+                              child: Text('OR'),
+                            ),
+                            const Expanded(child: Divider(color: AppColors.lightBlue)),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pushNamed(context, '/otp');
+                          },
+                          icon: const Icon(Icons.phone_outlined),
+                          label: const Text('Continue with Phone'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.deepBlue,
+                            side: const BorderSide(color: AppColors.deepBlue),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
                         const SizedBox(height: 24),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
                               "Don't Have an account? ",
-                              style: AppTypography.bodyMedium.copyWith(color: Colors.black87),
+                              style: AppTypography.bodySmall.copyWith(color: Colors.black87),
                             ),
                             GestureDetector(
                               onTap: () {
@@ -258,7 +284,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               },
                               child: Text(
                                 'Register Here',
-                                style: AppTypography.bodyMedium.copyWith(
+                                style: AppTypography.bodySmall.copyWith(
                                   color: AppColors.mediumBlue,
                                   fontWeight: FontWeight.bold,
                                 ),
