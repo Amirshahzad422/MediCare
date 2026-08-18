@@ -1,85 +1,80 @@
-# MediCare � Full-Stack Telemedicine App
+﻿# MediCare - Telemedicine Application
 
-> A production-level telemedicine Flutter app connecting patients with certified doctors.
-> Built with Flutter � Firebase � Riverpod
+MediCare is a comprehensive, full-stack telemedicine application built using **Flutter**, **Firebase**, and **Riverpod**. It provides a complete digital healthcare ecosystem connecting patients with certified medical professionals.
 
----
+This project was developed as a core deliverable for the **Verxeon Technologies Internship Program**.
 
-## Tech Stack
+## 🌟 Features
 
-| Layer | Technology |
-|---|---|
-| UI Framework | Flutter (Dart) |
-| State Management | Flutter Riverpod |
-| Auth | Firebase Authentication |
-| Database | Cloud Firestore |
-| Storage | Firebase Storage |
-| PDF | pdf + printing packages |
-| Camera | camera package |
-| Image Picker | image_picker package |
+### 🧑‍⚕️ For Patients
+- **Doctor Discovery:** Advanced search and filtering by specialty, city, availability, rating, and fee.
+- **Appointment Booking:** Real-time slot selection with concurrency checks to prevent double bookings.
+- **Secure Payments:** Integrated **Stripe** checkout for consultation fees.
+- **Video Consultations:** High-quality, low-latency live video calls powered by **Agora WebRTC**.
+- **Digital Prescriptions:** Receive downloadable PDF prescriptions directly after a consultation.
+- **E-Pharmacy:** Browse medicines, add to cart, and order with real-time delivery tracking.
+- **Real-Time Chat:** Instant messaging with doctors.
 
----
+### 🩺 For Doctors
+- **Professional Dashboard:** Manage daily schedules, upcoming appointments, and patient records.
+- **Digital Prescription Builder:** Generate professional, formatted PDF prescriptions within the app.
+- **Earnings & Reviews:** Track consultation earnings and read patient feedback.
+- **Flexible Scheduling:** Define business hours and availability days.
 
-## Setup
+## 🛠️ Tech Stack
 
-### 1. Install
-```
-flutter pub get
-```
+- **Frontend:** Flutter (Dart) targeting Android, iOS, and Web.
+- **State Management:** Flutter Riverpod.
+- **Backend Services:** Firebase (Authentication, Cloud Firestore, Cloud Storage).
+- **Video Calling:** Agora RTC Engine.
+- **Payments:** Stripe API (flutter_stripe).
+- **Push Notifications:** Firebase Cloud Messaging (FCM).
+- **PDF Generation:** pdf and printing packages.
 
-### 2. Firebase
-google-services.json (Android) and firebase_options.dart are already configured.
+## 🗄️ Database Schema (Firestore)
 
-### 3. Run
-```
-flutter run
-```
+- users: Core profile data (uid, 
+ame, phone, 
+ole: 1/2).
+- doctors: Extended profile for doctors (specialty, fee, slots, businessStartHour, 
+eviews).
+- appointments: Consultation records (patientId, doctorId, status, date, slot, mount).
+- chats & messages: Real-time text communication between users.
+- medicines & orders: E-commerce catalog and patient orders.
 
----
+## 🚀 Getting Started
 
-## Patient Journey
+### Prerequisites
+- Flutter SDK (v3.10.7 or higher)
+- Firebase Project configured (Auth, Firestore, Storage)
+- Agora App ID and Token Server (for Video Calls)
+- Stripe Publishable and Secret Keys
 
-1. Register as Patient ? OTP ? land on Home
-2. Home: browse specialty chips, featured doctors, testimonials
-3. Find Doctor: filter by specialty, city, fee, rating
-4. Book: pick date + slot + type
-5. Pay: promo codes MEDICARE10 (10 off), FIRST20 (20 off)
-6. Appointments: join call, reschedule, cancel
-7. Video Call: both parties join shared Firestore room ? LIVE ? in-call chat
-8. Prescriptions: view medicine list, download PDF
-9. Pharmacy: order medicines from prescription
-10. Profile: tap camera icon to upload photo (no URL needed)
+### Installation
 
-## Doctor Journey
+1. **Clone the repository:**
+   `bash
+   git clone https://github.com/verxeon-ai/MediCare.git
+   cd MediCare
+   `
 
-1. Register as Doctor ? complete profile (specialty, fee, photo)
-2. Dashboard > Today: see today's appointments ? Join Consultation button
-3. Dashboard > Schedule: toggle availability, see slots
-4. Dashboard > Earnings: total earnings, patients seen
-5. Dashboard > Records: all issued prescriptions
-6. FAB: Write Prescription ? patient name, diagnosis, medicines, notes ? Issue
+2. **Install dependencies:**
+   `bash
+   flutter pub get
+   `
 
-## Simultaneous Video Call Architecture
+3. **Configure Firebase:**
+   - Place your google-services.json in android/app/.
+   - Place your GoogleService-Info.plist in ios/Runner/.
 
-Patient taps Join ? Firestore call room created (status: ringing)
-Doctor taps Join  ? room updated (status: connected)
-Both stream watchCall() ? both see LIVE status
-Both stream watchMessages() ? real-time shared chat
-Either ends call ? Firestore updated ? both get end dialog
+4. **Run the App:**
+   `bash
+   flutter run
+   `
 
-## Promo Codes
+## 🔐 Role-Based Access
+MediCare uses a strict role-based routing mechanism (RoleGuard). 
+- **Patient Role (1):** Redirected to the Patient Discovery Portal.
+- **Doctor Role (2):** Redirected to the Doctor Management Dashboard.
 
-- MEDICARE10 = 10 USD off
-- FIRST20    = 20 USD off (first-time patients)
 
-## Firestore Collections
-
-| Collection | Purpose |
-|---|---|
-| users | Patient and Doctor profiles |
-| doctors | Doctor listings |
-| appointments | All bookings |
-| prescriptions | Issued prescriptions |
-| calls | Call room state |
-| calls/{id}/messages | In-call chat |
-| orders | Pharmacy orders |
