@@ -10,7 +10,6 @@ import '../services/chat_service.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
 
-/// Pre/post-consultation chat between patient & doctor (Firestore backed).
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
 

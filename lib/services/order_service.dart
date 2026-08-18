@@ -23,19 +23,24 @@ class OrderService {
           '${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}'
           '${now.second.toString().padLeft(2, '0')}';
 
-      final docRef = await _db.collection('orders').add({
-        'patientId': user.uid,
-        'patientName': user.displayName ?? 'Patient',
-        'orderNo': orderNo,
-        'items': items.map((i) => i.toMap()).toList(),
-        'subtotal': subtotal,
-        'discount': discount,
-        'total': total,
-        'address': address,
-        'paymentMethod': paymentMethod,
-        'status': 'Placed',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      final newOrder = OrderModel(
+        id: '',
+        patientId: user.uid,
+        patientName: user.displayName ?? 'Patient',
+        orderNo: orderNo,
+        items: items,
+        subtotal: subtotal,
+        discount: discount,
+        total: total,
+        address: address,
+        paymentMethod: paymentMethod,
+        status: 'Placed',
+      );
+
+      final data = newOrder.toMap();
+      data['createdAt'] = FieldValue.serverTimestamp();
+
+      final docRef = await _db.collection('orders').add(data);
 
       final doc = await docRef.get();
       return OrderModel.fromMap(doc.data() ?? {}, doc.id);

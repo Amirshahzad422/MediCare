@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -14,7 +15,6 @@ class AuthService {
     required int role,
   }) async {
     try {
-      // Check if phone number is already registered
       final querySnapshot = await _db
           .collection('users')
           .where('phone', isEqualTo: phone)
@@ -34,7 +34,6 @@ class AuthService {
       User? user = result.user;
 
       if (user != null) {
-        // Update the display name in Firebase Auth
         await user.updateDisplayName(name);
         
         UserModel newUser = UserModel(
@@ -45,6 +44,7 @@ class AuthService {
           role: role,
         );
         await _db.collection('users').doc(user.uid).set(newUser.toMap());
+        await updateFCMToken(user.uid);
       }
       return user;
     } catch (e) {
@@ -59,9 +59,25 @@ class AuthService {
         email: email,
         password: password,
       );
+      if (result.user != null) {
+        await updateFCMToken(result.user!.uid);
+      }
       return result.user;
     } catch (e) {
       return null;
+    }
+  }
+
+  Future<void> updateFCMToken(String uid) async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) {
+        await _db.collection('users').doc(uid).set(
+          {'fcmToken': token},
+          SetOptions(merge: true),
+        );
+      }
+    } catch (e) {
     }
   }
 
@@ -94,6 +110,15 @@ class AuthService {
   }
 
   Future<void> logout() async {
+    final user = _auth.currentUser;
+    if (user != null) {
+      try {
+        await _db.collection('users').doc(user.uid).update({
+          'fcmToken': FieldValue.delete(),
+        });
+      } catch (e) {
+      }
+    }
     await _auth.signOut();
   }
 
@@ -108,7 +133,6 @@ class AuthService {
       if (querySnapshot.docs.isEmpty) return false;
       
       if (excludeUid != null) {
-        // If there's only one and it belongs to the current user, it's fine.
         final docs = querySnapshot.docs.where((doc) => doc.id != excludeUid).toList();
         return docs.isNotEmpty;
       }
@@ -140,7 +164,6 @@ class AuthService {
 
   Future<User?> registerWithVerifiedPhone(PhoneAuthCredential credential, Map<String, dynamic> data) async {
     try {
-      // 1. Create User with Email and Password
       UserCredential result = await _auth.createUserWithEmailAndPassword(
         email: data['email'],
         password: data['password'],
@@ -148,16 +171,13 @@ class AuthService {
       User? user = result.user;
 
       if (user != null) {
-        // 2. Link Phone Credential
         try {
           await user.linkWithCredential(credential);
         } catch (e) {
-          // If linking fails, clean up the created user to prevent orphaned accounts
           await user.delete();
           rethrow;
         }
 
-        // 3. Update Display Name and Save to Firestore
         await user.updateDisplayName(data['name']);
         
         UserModel newUser = UserModel(
@@ -168,6 +188,7 @@ class AuthService {
           role: data['role'],
         );
         await _db.collection('users').doc(user.uid).set(newUser.toMap());
+        await updateFCMToken(user.uid);
       }
       return user;
     } catch (e) {

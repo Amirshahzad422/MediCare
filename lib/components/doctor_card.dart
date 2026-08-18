@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../models/doctor_model.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/profile_provider.dart';
 
-class DoctorCard extends StatelessWidget {
+class DoctorCard extends ConsumerWidget {
   final DoctorModel doctor;
   final VoidCallback onBookTap;
 
@@ -14,7 +16,10 @@ class DoctorCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userDoc = ref.watch(basicUserByIdProvider(doctor.id)).value;
+    final photo = userDoc?['photo'] ?? '';
+
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
@@ -33,9 +38,9 @@ class DoctorCard extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: doctor.photo.isNotEmpty && doctor.photo.startsWith('http')
+            child: photo.isNotEmpty && photo.startsWith('http')
                 ? Image.network(
-                    doctor.photo,
+                    photo,
                     width: 80,
                     height: 80,
                     fit: BoxFit.cover,

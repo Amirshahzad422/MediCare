@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
 
-/// Reusable chat message bubble (used in video call chat & chat screen).
 class ChatBubble extends StatelessWidget {
   final String text;
   final bool isMine;

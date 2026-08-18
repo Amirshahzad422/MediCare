@@ -15,7 +15,6 @@ final favouritesProvider = FutureProvider<List<String>>((ref) async {
   return service.getFavourites(user.uid);
 });
 
-/// Merged user document: base data from 'users' + doctor data from 'doctors' if role == 2.
 final userDocProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
   ref.watch(authStateProvider);
   final user = FirebaseAuth.instance.currentUser;
@@ -27,14 +26,12 @@ final userDocProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
 
   Map<String, dynamic> data = userDoc.data()!;
 
-  // If doctor, merge with 'doctors' document
   if (data['role'] == 2) {
     final doctorDoc = await db.collection('doctors').doc(user.uid).get();
     if (doctorDoc.exists) {
       data.addAll(doctorDoc.data()!);
     }
   } else if (data['role'] == 1) {
-    // If patient, merge with 'patients' document
     final patientDoc = await db.collection('patients').doc(user.uid).get();
     if (patientDoc.exists) {
       data.addAll(patientDoc.data()!);
@@ -43,7 +40,6 @@ final userDocProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
   return data;
 });
 
-/// Doctor profile directly from 'doctors' collection.
 final doctorProfileProvider = FutureProvider<DoctorModel?>((ref) async {
   ref.watch(authStateProvider);
   final user = FirebaseAuth.instance.currentUser;
@@ -68,4 +64,10 @@ final patientByIdProvider = FutureProvider.family<Map<String, dynamic>?, String>
     data.addAll(patientDoc.data()!);
   }
   return data;
+});
+
+final basicUserByIdProvider = FutureProvider.family<Map<String, dynamic>?, String>((ref, uid) async {
+  final db = FirebaseFirestore.instance;
+  final userDoc = await db.collection('users').doc(uid).get();
+  return userDoc.exists ? userDoc.data() : null;
 });

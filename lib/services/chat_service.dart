@@ -25,12 +25,19 @@ class ChatMessageModel {
       at: (data['at'] as dynamic)?.toDate(),
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'senderId': senderId,
+      'senderName': senderName,
+      'text': text,
+    };
+  }
 }
 
 class ChatService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// Deterministic thread key shared by patient & doctor for a consultation.
   static String threadKey(String uid, String doctorName) {
     final base = '$uid-$doctorName'.toLowerCase();
     return base.replaceAll(RegExp(r'[^a-z0-9]'), '-');
@@ -52,11 +59,16 @@ class ChatService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    await _db.collection('chats').doc(threadKey).collection('messages').add({
-      'senderId': user.uid,
-      'senderName': user.displayName ?? (user.email ?? 'User'),
-      'text': text,
-      'at': FieldValue.serverTimestamp(),
-    });
+    final msg = ChatMessageModel(
+      id: '',
+      senderId: user.uid,
+      senderName: user.displayName ?? (user.email ?? 'User'),
+      text: text,
+    );
+
+    final data = msg.toMap();
+    data['at'] = FieldValue.serverTimestamp();
+
+    await _db.collection('chats').doc(threadKey).collection('messages').add(data);
   }
 }

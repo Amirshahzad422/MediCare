@@ -4,9 +4,6 @@ import '../components/app_drawer.dart';
 import '../components/footer.dart';
 import '../styles/colors.dart';
 
-/// Shared responsive layout:
-/// - wide screens (web / tablet): top app bar + content + footer
-/// - small screens (mobile): app bar + endDrawer (hamburger) + content
 class ResponsiveLayout extends StatelessWidget {
   final String currentRoute;
   final Widget child;
@@ -35,7 +32,7 @@ class ResponsiveLayout extends StatelessWidget {
           ),
         ),
       ),
-      endDrawer: AppDrawer(currentRoute: currentRoute),
+      drawer: AppDrawer(currentRoute: currentRoute),
       body: Column(
         children: [
           Expanded(child: child),

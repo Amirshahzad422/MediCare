@@ -35,7 +35,7 @@ class ReviewModel {
       'patientName': patientName,
       'rating': rating,
       'comment': comment,
-      'createdAt': FieldValue.serverTimestamp(),
+      'createdAt': Timestamp.fromDate(createdAt),
     };
   }
 }

@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/doctor_model.dart';
 import '../providers/doctor_provider.dart';
 import '../providers/profile_provider.dart';
+import '../providers/review_provider.dart';
+import '../models/review_model.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
+import '../layouts/responsive_layout.dart';
 
 class DoctorDetailsScreen extends ConsumerWidget {
   const DoctorDetailsScreen({super.key});
@@ -14,22 +17,15 @@ class DoctorDetailsScreen extends ConsumerWidget {
     final args = ModalRoute.of(context)?.settings.arguments;
 
     if (args == null || args is! DoctorModel) {
-      return Scaffold(
-        backgroundColor: AppColors.white,
-        appBar: AppBar(
+      return ResponsiveLayout(
+        currentRoute: '/doctor-details',
+        child: Scaffold(
           backgroundColor: AppColors.white,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.darkNavy),
-            onPressed: () => Navigator.pushReplacementNamed(context, '/dashboard'),
-          ),
-          title: Text('Profile Error', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
-          centerTitle: true,
-        ),
-        body: Center(
-          child: Text(
-            'No doctor selection found. Please go back.',
-            style: AppTypography.bodyLarge,
+          body: Center(
+            child: Text(
+              'No doctor selection found. Please go back.',
+              style: AppTypography.bodyLarge,
+            ),
           ),
         ),
       );
@@ -37,9 +33,6 @@ class DoctorDetailsScreen extends ConsumerWidget {
 
     final doctor = args;
     final doctorsAsync = ref.watch(doctorsListProvider);
-    final favouritesAsync = ref.watch(favouritesProvider);
-    final isFavourite =
-        favouritesAsync.value?.contains(doctor.id) ?? false;
 
     final similarDoctors = doctorsAsync.value
             ?.where((d) => d.id != doctor.id && d.specialty == doctor.specialty)
@@ -47,47 +40,11 @@ class DoctorDetailsScreen extends ConsumerWidget {
             .toList() ??
         [];
 
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      appBar: AppBar(
+    return ResponsiveLayout(
+      currentRoute: '/doctor-details',
+      child: Scaffold(
         backgroundColor: AppColors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.darkNavy),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text('Doctor Profile', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            tooltip: isFavourite ? 'Remove from favourites' : 'Add to favourites',
-            onPressed: () async {
-              final ok = await ref
-                  .read(profileServiceProvider)
-                  .toggleFavourite(doctor.id);
-              if (ok) {
-                ref.invalidate(favouritesProvider);
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(isFavourite
-                        ? 'Removed from favourites'
-                        : 'Added to favourites'),
-                    behavior: SnackBarBehavior.floating,
-                    backgroundColor:
-                        isFavourite ? AppColors.grey : AppColors.deepBlue,
-                  ),
-                );
-              }
-            },
-            icon: Icon(
-              isFavourite ? Icons.favorite : Icons.favorite_border,
-              color: isFavourite ? AppColors.error : AppColors.lightBlue,
-            ),
-          ),
-        ],
-      ),
-      body: SafeArea(
+        body: SafeArea(
         child: Column(
           children: [
             Expanded(
@@ -138,58 +95,72 @@ class DoctorDetailsScreen extends ConsumerWidget {
                       style: AppTypography.bodyLarge.copyWith(height: 1.5),
                     ),
                     const SizedBox(height: 24),
-                    if (doctor.reviews.isNotEmpty) ...[
-                      Text(
-                        'Patient Reviews',
-                        style: AppTypography.titleLarge.copyWith(fontSize: 20),
-                      ),
-                      const SizedBox(height: 12),
-                      ...doctor.reviews.map((review) => Container(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: AppColors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.iceBlue, width: 1.5),
-                            ),
-                            child: Column(
+                    const SizedBox(height: 24),
+                    Consumer(
+                      builder: (context, ref, child) {
+                        final reviewsAsync = ref.watch(doctorReviewsProvider(doctor.id));
+                        return reviewsAsync.when(
+                          data: (reviews) {
+                            if (reviews.isEmpty) return const SizedBox.shrink();
+                            return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        review['name'] ?? 'Patient',
-                                        style: AppTypography.bodyLarge.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
+                                Text(
+                                  'What patients say about ${doctor.name}',
+                                  style: AppTypography.titleLarge.copyWith(fontSize: 20),
+                                ),
+                                const SizedBox(height: 12),
+                                ...reviews.take(5).map((review) => Container(
+                                  margin: const EdgeInsets.only(bottom: 10),
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: AppColors.iceBlue, width: 1.5),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              review.patientName.isNotEmpty ? review.patientName : 'Patient',
+                                              style: AppTypography.bodyLarge.copyWith(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ),
+                                          Row(
+                                            children: List.generate(5, (i) => Icon(
+                                              i < review.rating ? Icons.star : Icons.star_border,
+                                              color: Colors.amber,
+                                              size: 15,
+                                            )),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        review.comment,
+                                        style: AppTypography.bodyMedium.copyWith(
+                                          color: AppColors.darkNavy,
+                                          height: 1.4,
                                         ),
                                       ),
-                                    ),
-                                    Row(
-                                      children: List.generate(5, (i) => Icon(
-                                            i < ((review['rating'] ?? 5) as num).toInt()
-                                                ? Icons.star
-                                                : Icons.star_border,
-                                            color: Colors.amber,
-                                            size: 15,
-                                          )),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  review['comment'] ?? '',
-                                  style: AppTypography.bodyMedium.copyWith(
-                                    color: AppColors.darkNavy,
-                                    height: 1.4,
+                                    ],
                                   ),
-                                ),
+                                )),
+                                const SizedBox(height: 16),
                               ],
-                            ),
-                          )),
-                      const SizedBox(height: 16),
-                    ],
+                            );
+                          },
+                          loading: () => const Center(child: CircularProgressIndicator(color: AppColors.deepBlue)),
+                          error: (e, st) => const SizedBox.shrink(),
+                        );
+                      },
+                    ),
                     if (similarDoctors.isNotEmpty) ...[
                       Text(
                         'Similar Doctors',
@@ -214,27 +185,33 @@ class DoctorDetailsScreen extends ConsumerWidget {
                                 children: [
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(8),
-                                    child: similar.photo.isNotEmpty && similar.photo.startsWith('http')
-                                        ? Image.network(
-                                            similar.photo,
-                                            width: 44,
-                                            height: 44,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (context, error, stackTrace) => Container(
-                                              width: 44,
-                                              height: 44,
-                                              color: AppColors.iceBlue,
-                                              child: const Icon(Icons.person,
-                                                  color: AppColors.deepBlue, size: 22),
-                                            ),
-                                          )
-                                        : Container(
-                                            width: 44,
-                                            height: 44,
-                                            color: AppColors.iceBlue,
-                                            child: const Icon(Icons.person,
-                                                color: AppColors.deepBlue, size: 22),
-                                          ),
+                                    child: Consumer(
+                                      builder: (context, ref, _) {
+                                        final userDoc = ref.watch(basicUserByIdProvider(similar.id)).value;
+                                        final photoUrl = userDoc?['photo'] ?? '';
+                                        return photoUrl.isNotEmpty && photoUrl.startsWith('http')
+                                            ? Image.network(
+                                                photoUrl,
+                                                width: 44,
+                                                height: 44,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error, stackTrace) => Container(
+                                                  width: 44,
+                                                  height: 44,
+                                                  color: AppColors.iceBlue,
+                                                  child: const Icon(Icons.person,
+                                                      color: AppColors.deepBlue, size: 22),
+                                                ),
+                                              )
+                                            : Container(
+                                                width: 44,
+                                                height: 44,
+                                                color: AppColors.iceBlue,
+                                                child: const Icon(Icons.person,
+                                                    color: AppColors.deepBlue, size: 22),
+                                              );
+                                      },
+                                    ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
@@ -292,6 +269,7 @@ class DoctorDetailsScreen extends ConsumerWidget {
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -314,21 +292,27 @@ class DoctorDetailsScreen extends ConsumerWidget {
               ],
             ),
             child: ClipOval(
-              child: doctor.photo.isNotEmpty && doctor.photo.startsWith('http')
-                  ? Image.network(
-                      doctor.photo,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
+              child: Consumer(
+                builder: (context, ref, _) {
+                  final userDoc = ref.watch(basicUserByIdProvider(doctor.id)).value;
+                  final photoUrl = userDoc?['photo'] ?? '';
+                  return photoUrl.isNotEmpty && photoUrl.startsWith('http')
+                      ? Image.network(
+                          photoUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: AppColors.iceBlue,
+                              child: const Icon(Icons.person, size: 60, color: AppColors.deepBlue),
+                            );
+                          },
+                        )
+                      : Container(
                           color: AppColors.iceBlue,
                           child: const Icon(Icons.person, size: 60, color: AppColors.deepBlue),
                         );
-                      },
-                    )
-                  : Container(
-                      color: AppColors.iceBlue,
-                      child: const Icon(Icons.person, size: 60, color: AppColors.deepBlue),
-                    ),
+                },
+              ),
             ),
           ),
         ),
@@ -346,7 +330,7 @@ class DoctorDetailsScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 6),
-        if (doctor.availableToday)
+        if (doctor.availableToday && TimeOfDay.now().hour < doctor.businessEndHour)
           Center(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -383,14 +367,29 @@ class DoctorDetailsScreen extends ConsumerWidget {
   }
 
   Widget _stats(DoctorModel doctor) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _buildStatCard('Rating', '${doctor.rating} ⭐', AppColors.iceBlue),
-        _buildStatCard('Experience', '${doctor.experience} Yrs', AppColors.iceBlue),
-        _buildStatCard('Fee', '\$${doctor.fee.toStringAsFixed(0)}', AppColors.iceBlue),
-        _buildStatCard('Booked', '${doctor.bookedCount}+', AppColors.iceBlue),
-      ],
+    return Consumer(
+      builder: (context, ref, child) {
+        final reviewsAsync = ref.watch(doctorReviewsProvider(doctor.id));
+        final avgRating = reviewsAsync.when(
+          data: (reviews) {
+            if (reviews.isEmpty) return doctor.rating;
+            final sum = reviews.fold<int>(0, (prev, review) => prev + review.rating);
+            return sum / reviews.length;
+          },
+          loading: () => doctor.rating,
+          error: (_, __) => doctor.rating,
+        );
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildStatCard('Rating', '${avgRating.toStringAsFixed(1)} ⭐', AppColors.iceBlue),
+            _buildStatCard('Experience', '${doctor.experience} Yrs', AppColors.iceBlue),
+            _buildStatCard('Fee', '\$${doctor.fee.toStringAsFixed(0)}', AppColors.iceBlue),
+            _buildStatCard('Booked', '${doctor.bookedCount}+', AppColors.iceBlue),
+          ],
+        );
+      },
     );
   }
 

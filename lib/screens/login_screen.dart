@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../providers/auth_provider.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
@@ -45,7 +46,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     if (user != null) {
-      Navigator.pushReplacementNamed(context, '/dashboard');
+      try {
+        final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        final role = doc.data()?['role'] ?? 1;
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, role == 2 ? '/doctor-dashboard' : '/dashboard');
+      } catch (e) {
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/dashboard');
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Login Failed. Invalid credentials.')),
@@ -92,15 +101,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(
-                      Icons.medical_services_outlined,
-                      size: 64,
-                      color: AppColors.white,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'MediCare',
-                      style: AppTypography.displayLarge.copyWith(color: AppColors.white),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.asset(
+                        'assets/images/logo.png',
+                        height: 80,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ],
                 ),
@@ -123,25 +130,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       children: [
                         Text(
                           'Login',
-                          style: AppTypography.displayLarge.copyWith(color: Colors.black87),
+                          style: AppTypography.displayLarge.copyWith(color: Colors.black87, fontSize: 24),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'Please Login to Online Consultant',
-                          style: AppTypography.bodySmall.copyWith(color: Colors.black54),
+                          style: AppTypography.bodySmall.copyWith(color: Colors.black54, fontSize: 12),
                         ),
                         const SizedBox(height: 16),
                         Text(
                           'Email*',
-                          style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.bold),
+                          style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.bold, fontSize: 12),
                         ),
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _emailController,
-                          style: AppTypography.bodyLarge,
+                          style: AppTypography.bodyLarge.copyWith(fontSize: 16),
                           decoration: InputDecoration(
                             hintText: 'anna@gmail.com',
-                            hintStyle: AppTypography.bodySmall.copyWith(color: Colors.black38),
+                            hintStyle: AppTypography.bodySmall.copyWith(color: Colors.black38, fontSize: 12),
                             prefixIcon: const Icon(Icons.person_outline, color: AppColors.mediumBlue),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -167,16 +174,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         const SizedBox(height: 24),
                         Text(
                           'Password*',
-                          style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.bold),
+                          style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.bold, fontSize: 12),
                         ),
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _passwordController,
-                          style: AppTypography.bodyLarge,
+                          style: AppTypography.bodyLarge.copyWith(fontSize: 16),
                           obscureText: _obscurePassword,
                           decoration: InputDecoration(
                             hintText: 'Password',
-                            hintStyle: AppTypography.bodySmall.copyWith(color: Colors.black38),
+                            hintStyle: AppTypography.bodySmall.copyWith(color: Colors.black38, fontSize: 12),
                             prefixIcon: const Icon(Icons.lock_outline, color: AppColors.mediumBlue),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -219,6 +226,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               style: AppTypography.bodySmall.copyWith(
                                 color: AppColors.mediumBlue,
                                 fontWeight: FontWeight.bold,
+                                fontSize: 12,
                               ),
                             ),
                           ),
@@ -241,7 +249,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             width: 20,
                             child: CircularProgressIndicator(color: AppColors.white, strokeWidth: 2),
                           )
-                              : Text('Login', style: AppTypography.buttonText),
+                              : Text('Login', style: AppTypography.buttonText.copyWith(fontSize: 14)),
                         ),
                         const SizedBox(height: 16),
                         Row(
@@ -276,7 +284,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           children: [
                             Text(
                               "Don't Have an account? ",
-                              style: AppTypography.bodySmall.copyWith(color: Colors.black87),
+                              style: AppTypography.bodySmall.copyWith(color: Colors.black87, fontSize: 12),
                             ),
                             GestureDetector(
                               onTap: () {
@@ -287,6 +295,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 style: AppTypography.bodySmall.copyWith(
                                   color: AppColors.mediumBlue,
                                   fontWeight: FontWeight.bold,
+                                  fontSize: 12,
                                 ),
                               ),
                             ),

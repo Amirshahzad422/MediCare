@@ -39,7 +39,6 @@ class _DoctorDashboardScreenState extends ConsumerState<DoctorDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header Section
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -47,18 +46,56 @@ class _DoctorDashboardScreenState extends ConsumerState<DoctorDashboardScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('Welcome back,', style: AppTypography.bodyMedium),
-                            Text('Dr. $doctorName', style: AppTypography.titleLarge.copyWith(fontSize: 24)),
+                            Text(
+                              doctorName.startsWith('Dr.') ? doctorName : 'Dr. $doctorName',
+                                style: AppTypography.titleLarge.copyWith(fontSize: 24),
+                              )
                           ],
                         ),
-                        Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.iceBlue, width: 2),
+                        ref.watch(userDocProvider).when(
+                          data: (userDoc) {
+                            final photoUrl = userDoc?['photo'] ?? '';
+                            return ClipRRect(
+                              borderRadius: BorderRadius.circular(40),
+                              child: photoUrl.isNotEmpty && photoUrl.startsWith('http')
+                                  ? Image.network(
+                                      photoUrl,
+                                      width: 80,
+                                      height: 80,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Container(
+                                          width: 80,
+                                          height: 80,
+                                          color: AppColors.iceBlue,
+                                          child: const Icon(Icons.person, color: AppColors.deepBlue),
+                                        );
+                                      },
+                                    )
+                                  : Container(
+                                      width: 80,
+                                      height: 80,
+                                      color: AppColors.iceBlue,
+                                      child: const Icon(Icons.person, color: AppColors.deepBlue),
+                                    ),
+                            );
+                          },
+                          loading: () => Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: AppColors.iceBlue,
+                              shape: BoxShape.circle,
+                            ),
                           ),
-                          child: const CircleAvatar(
-                            backgroundColor: AppColors.iceBlue,
-                            child: Icon(Icons.medical_services, color: AppColors.deepBlue),
+                          error: (_, __) => Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: AppColors.iceBlue,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.person, color: AppColors.deepBlue),
                           ),
                         )
                       ],
@@ -68,14 +105,14 @@ class _DoctorDashboardScreenState extends ConsumerState<DoctorDashboardScreen> {
                     DashboardStatsCard(doctorId: doctorId),
                     const SizedBox(height: 28),
 
-                    IntrinsicHeight( // <-- ADD THIS
+                    IntrinsicHeight(
                       child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch, // <-- ADD THIS
+                        crossAxisAlignment: CrossAxisAlignment.stretch, 
                         children: [
                           Expanded(
                             child: QuickActionCard(
                               icon: Icons.calendar_month_outlined,
-                              title: 'My Schedule',
+                              title: 'Schedule',
                               subtitle: 'Manage availability',
                               onTap: () => _openScheduleModal(context, doctorName, ref),
                             ),

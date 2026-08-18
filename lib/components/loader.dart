@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../styles/colors.dart';
 
-/// Shared spinner.
 class LoadingIndicator extends StatelessWidget {
   final double size;
   final Color? color;
@@ -21,7 +20,6 @@ class LoadingIndicator extends StatelessWidget {
   }
 }
 
-/// Shimmer-less skeleton placeholder built from the brand palette.
 class SkeletonBox extends StatelessWidget {
   final double? width;
   final double? height;
@@ -42,7 +40,6 @@ class SkeletonBox extends StatelessWidget {
   }
 }
 
-/// Doctor card skeleton used during pagination / initial load.
 class DoctorCardSkeleton extends StatelessWidget {
   const DoctorCardSkeleton({super.key});
 
@@ -79,7 +76,6 @@ class DoctorCardSkeleton extends StatelessWidget {
   }
 }
 
-/// Grid skeleton block.
 class DoctorGridSkeleton extends StatelessWidget {
   const DoctorGridSkeleton({super.key});
 

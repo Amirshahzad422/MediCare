@@ -7,8 +7,10 @@ import '../services/call_service.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
 
+import '../models/appointment_model.dart';
+
 class DoctorAppointmentCard extends StatefulWidget {
-  final Map<String, dynamic> app;
+  final AppointmentModel app;
   final String doctorName;
 
   const DoctorAppointmentCard({
@@ -42,7 +44,7 @@ class _DoctorAppointmentCardState extends State<DoctorAppointmentCard> {
   @override
   Widget build(BuildContext context) {
     final app = widget.app;
-    final status = parseStatus(app['status']);
+    final status = parseStatus(app.status);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -72,7 +74,7 @@ class _DoctorAppointmentCardState extends State<DoctorAppointmentCard> {
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  app['slot']?.toString().split(' ').first ?? '--:--',
+                  app.slot.split(' ').first,
                   style: AppTypography.bodyMedium.copyWith(
                     color: AppColors.deepBlue,
                     fontWeight: FontWeight.bold,
@@ -86,11 +88,11 @@ class _DoctorAppointmentCardState extends State<DoctorAppointmentCard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      app['patientName'] ?? 'Patient',
+                      app.patientName,
                       style: AppTypography.titleLarge.copyWith(fontSize: 15),
                     ),
                     Text(
-                      '${app['type'] ?? 'Video'} • ${app['slot']}',
+                      '${app.type} • ${app.slot}',
                       style: AppTypography.bodyMedium.copyWith(fontSize: 11),
                     ),
                   ],
@@ -135,7 +137,7 @@ class _DoctorAppointmentCardState extends State<DoctorAppointmentCard> {
                   Tooltip(
                     message: 'Cancel',
                     child: OutlinedButton(
-                      onPressed: () => _cancel(context, app),
+                      onPressed: () => _cancel(context),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.error,
                         side: const BorderSide(color: AppColors.error),
@@ -188,7 +190,8 @@ class _DoctorAppointmentCardState extends State<DoctorAppointmentCard> {
         context,
         '/video-call',
         arguments: {
-          ...widget.app,
+          ...widget.app.toMap(),
+          'id': widget.app.id,
           'callId': callId,
           'isDoctor': true,
         },
@@ -215,8 +218,8 @@ class _DoctorAppointmentCardState extends State<DoctorAppointmentCard> {
             doctorName: doctorName,
             specialty: specialty,
             doctorPhoto: photo,
-            prefilledPatientId: widget.app['patientId'],
-            prefilledPatientName: widget.app['patientName'],
+            prefilledPatientId: widget.app.patientId,
+            prefilledPatientName: widget.app.patientName,
           );
         },
       ),
@@ -253,7 +256,7 @@ class _DoctorAppointmentCardState extends State<DoctorAppointmentCard> {
     );
   }
 
-  Future<void> _cancel(BuildContext context, Map<String, dynamic> app) async {
+  Future<void> _cancel(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -262,7 +265,7 @@ class _DoctorAppointmentCardState extends State<DoctorAppointmentCard> {
         title: Text('Cancel Appointment?',
             style: AppTypography.titleLarge.copyWith(fontSize: 18)),
         content: Text(
-          'Your appointment with ${app['patientName']} on ${app['date']} at ${app['slot']} '
+          'Your appointment with ${widget.app.patientName} on ${widget.app.date} at ${widget.app.slot} '
               'will be cancelled.',
           style: AppTypography.bodyLarge,
         ),
@@ -290,7 +293,7 @@ class _DoctorAppointmentCardState extends State<DoctorAppointmentCard> {
     try {
       await FirebaseFirestore.instance
           .collection('appointments')
-          .doc(app['id'])
+          .doc(widget.app.id)
           .update({'status': 3});
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

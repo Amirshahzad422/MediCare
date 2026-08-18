@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../providers/auth_provider.dart';
 import '../components/button.dart';
 import '../providers/review_provider.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
+import '../layouts/responsive_layout.dart';
 
 class ReviewScreen extends ConsumerStatefulWidget {
   const ReviewScreen({super.key});
@@ -22,33 +24,23 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
     final profile = ref.watch(userProfileProvider).value;
     final isDoctor = profile?.role == 2;
 
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      appBar: AppBar(
-        title: Text(
-          isDoctor ? 'My Reviews' : 'Write a Review',
-          style: AppTypography.titleLarge.copyWith(fontSize: 20),
-        ),
-        centerTitle: true,
+    return ResponsiveLayout(
+      currentRoute: '/reviews',
+      child: Scaffold(
         backgroundColor: AppColors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.darkNavy),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          if (!isDoctor && user != null)
-            IconButton(
-              icon: const Icon(Icons.add, color: AppColors.deepBlue),
-              onPressed: () => _showAddReviewBottomSheet(context),
-            ),
-        ],
-      ),
       body: user == null
           ? const Center(child: Text('Please login to view reviews.'))
           : isDoctor
           ? _buildDoctorReviews(user.uid)
           : _buildPatientContent(context),
+      floatingActionButton: (!isDoctor && user != null)
+          ? FloatingActionButton(
+              onPressed: () => _showAddReviewBottomSheet(context),
+              backgroundColor: AppColors.deepBlue,
+              child: const Icon(Icons.add, color: AppColors.white),
+            )
+          : null,
+      ),
     );
   }
 
@@ -143,7 +135,9 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
 }
 
 class AddReviewSheet extends ConsumerStatefulWidget {
-  const AddReviewSheet({super.key});
+  final String? doctorId;
+  final String? doctorName;
+  const AddReviewSheet({super.key, this.doctorId, this.doctorName});
 
   @override
   ConsumerState<AddReviewSheet> createState() => _AddReviewSheetState();
@@ -154,11 +148,48 @@ class _AddReviewSheetState extends ConsumerState<AddReviewSheet> {
   final _doctorIdController = TextEditingController();
   int _rating = 5;
   final _commentController = TextEditingController();
+  final _doctorNameController = TextEditingController();
   bool _isSubmitting = false;
+  String? _fetchedDoctorName;
+  bool _isLoadingName = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.doctorName != null) {
+      _fetchedDoctorName = widget.doctorName;
+      _doctorNameController.text = widget.doctorName!;
+    }
+    if (widget.doctorId != null) {
+      _doctorIdController.text = widget.doctorId!;
+      if (_fetchedDoctorName == null) {
+        _fetchDoctorName(widget.doctorId!);
+      }
+    }
+  }
+
+  Future<void> _fetchDoctorName(String id) async {
+    setState(() => _isLoadingName = true);
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(id).get();
+      if (doc.exists && doc.data() != null) {
+        setState(() {
+          _fetchedDoctorName = doc.data()!['name'];
+          _doctorNameController.text = _fetchedDoctorName!;
+        });
+      }
+    } catch (e) {
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingName = false);
+      }
+    }
+  }
 
   @override
   void dispose() {
     _doctorIdController.dispose();
+    _doctorNameController.dispose();
     _commentController.dispose();
     super.dispose();
   }
@@ -187,14 +218,24 @@ class _AddReviewSheetState extends ConsumerState<AddReviewSheet> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Doctor ID', style: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.bold)),
+                Text(_fetchedDoctorName != null ? 'Doctor Name' : 'Loading Doctor...', style: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                TextFormField(
-                  controller: _doctorIdController,
-                  style: AppTypography.bodyLarge,
-                  decoration: _inputDecoration('Enter doctor ID'),
-                  validator: (v) => v == null || v.trim().isEmpty ? 'Doctor ID required' : null,
-                ),
+                if (_isLoadingName)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: LinearProgressIndicator(color: AppColors.deepBlue),
+                  ),
+                if (!_isLoadingName)
+                  TextFormField(
+                    controller: _doctorNameController,
+                    style: AppTypography.bodyLarge,
+                    readOnly: true,
+                    decoration: _inputDecoration('Doctor Name').copyWith(
+                      fillColor: AppColors.iceBlue.withValues(alpha: 0.3),
+                      filled: true,
+                    ),
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                  ),
                 const SizedBox(height: 12),
                 Text('Rating', style: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
@@ -251,22 +292,35 @@ class _AddReviewSheetState extends ConsumerState<AddReviewSheet> {
   }
 
   Future<void> _submitReview() async {
-    if (!_formKey.currentState!.validate()) return;
+    print('==== SUBMIT REVIEW CLICKED ====');
+    print('Doctor ID: "${_doctorIdController.text}"');
+    print('Doctor Name: "${_doctorNameController.text}"');
+    print('Comment: "${_commentController.text}"');
+    
+    if (!_formKey.currentState!.validate()) {
+      print('==== VALIDATION FAILED ====');
+      return;
+    }
+    print('==== VALIDATION PASSED ====');
     setState(() => _isSubmitting = true);
 
     final service = ref.read(reviewServiceProvider);
     try {
+      print('==== CALLING addReview ====');
       await service.addReview(
         doctorId: _doctorIdController.text.trim(),
         rating: _rating,
         comment: _commentController.text.trim(),
       );
+      print('==== addReview SUCCESS ====');
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Review submitted successfully!'), backgroundColor: Colors.green),
       );
-    } catch (e) {
+    } catch (e, stacktrace) {
+      print('==== addReview FAILED: $e ====');
+      print(stacktrace);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to submit review. Please try again.')),

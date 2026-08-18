@@ -9,7 +9,6 @@ enum AvailabilityFilter { any, today, thisWeek }
 
 enum GenderFilter { any, male, female }
 
-/// Serializable filter state used by the Doctors screen.
 class DoctorFilterState {
   final String keyword;
   final String specialty;
@@ -25,7 +24,7 @@ class DoctorFilterState {
     this.keyword = '',
     this.specialty = 'All Specialties',
     this.city = 'All Cities',
-    this.feeRange = const RangeValues(0, 200),
+    this.feeRange = const RangeValues(0, 5000),
     this.minRating = 0,
     this.minExperience = 0,
     this.availability = AvailabilityFilter.any,
@@ -61,7 +60,7 @@ class DoctorFilterState {
     return keyword.isNotEmpty ||
         specialty != 'All Specialties' ||
         city != 'All Cities' ||
-        feeRange != const RangeValues(0, 200) ||
+        feeRange != const RangeValues(0, 5000) ||
         minRating > 0 ||
         minExperience > 0 ||
         availability != AvailabilityFilter.any ||
@@ -103,7 +102,6 @@ class DoctorFilterState {
   ];
 }
 
-/// Advanced filter & sort panel shown as a bottom sheet on the Doctors screen.
 class FiltersPanel extends StatefulWidget {
   final DoctorFilterState initial;
   final List<String> specialties;
@@ -186,8 +184,7 @@ class _FiltersPanelState extends State<FiltersPanel> {
               Text('Filters & Sort', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
               TextButton(
                 onPressed: () {
-                  _copyFrom(const DoctorFilterState());
-                  widget.onReset();
+                  widget.onApply(const DoctorFilterState());
                 },
                 child: Text(
                   'Reset',
@@ -229,8 +226,8 @@ class _FiltersPanelState extends State<FiltersPanel> {
           RangeSlider(
             values: _feeRange,
             min: 0,
-            max: 200,
-            divisions: 8,
+            max: 5000,
+            divisions: 50,
             activeColor: AppColors.deepBlue,
             inactiveColor: AppColors.iceBlue,
             labels: RangeLabels(
@@ -257,6 +254,7 @@ class _FiltersPanelState extends State<FiltersPanel> {
                     const SizedBox(height: 8),
                     DropdownButtonFormField<double>(
                       initialValue: _minRating,
+                      isExpanded: true,
                       style: AppTypography.bodyLarge.copyWith(color: AppColors.darkNavy),
                       decoration: _inputDecoration(hint: '', icon: Icons.star_border),
                       items: const [
@@ -279,6 +277,7 @@ class _FiltersPanelState extends State<FiltersPanel> {
                     const SizedBox(height: 8),
                     DropdownButtonFormField<int>(
                       initialValue: _minExperience,
+                      isExpanded: true,
                       style: AppTypography.bodyLarge.copyWith(color: AppColors.darkNavy),
                       decoration: _inputDecoration(hint: '', icon: Icons.work_outline),
                       items: const [
@@ -305,18 +304,6 @@ class _FiltersPanelState extends State<FiltersPanel> {
             ],
             selected: _availability,
             onSelect: (v) => setState(() => _availability = v),
-          ),
-          const SizedBox(height: 20),
-          _label('Gender'),
-          const SizedBox(height: 8),
-          _chipRow<GenderFilter>(
-            options: const [
-              (GenderFilter.any, 'Any'),
-              (GenderFilter.male, 'Male'),
-              (GenderFilter.female, 'Female'),
-            ],
-            selected: _gender,
-            onSelect: (v) => setState(() => _gender = v),
           ),
           const SizedBox(height: 24),
           _label('Sort By'),

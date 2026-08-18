@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../providers/notification_provider.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
+import '../layouts/responsive_layout.dart';
 
 class NotificationScreen extends ConsumerStatefulWidget {
   const NotificationScreen({super.key});
@@ -19,7 +20,6 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
   @override
   void initState() {
     super.initState();
-    // Mark all as read when screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _markAllAsRead();
     });
@@ -31,34 +31,19 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
     if (user == null) return;
     final service = ref.read(notificationServiceProvider);
     await service.markAllAsRead(user.uid);
-    setState(() => _marked = true);
-    // Invalidate the stream provider to update the count
-    ref.invalidate(notificationsStreamProvider);
+    if (mounted) {
+      setState(() => _marked = true);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final notificationsAsync = ref.watch(notificationsStreamProvider);
 
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      appBar: AppBar(
-        title: Text('Notifications', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
-        centerTitle: true,
+    return ResponsiveLayout(
+      currentRoute: '/notifications',
+      child: Scaffold(
         backgroundColor: AppColors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.darkNavy),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          if (_marked)
-            IconButton(
-              icon: const Icon(Icons.done_all, color: AppColors.deepBlue),
-              onPressed: null,
-            ),
-        ],
-      ),
       body: notificationsAsync.when(
         data: (notifications) {
           if (notifications.isEmpty) {
@@ -94,7 +79,7 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(notif.body, style: AppTypography.bodyMedium),
+                    Text(notif.body, style: AppTypography.bodyMedium, maxLines: null, softWrap: true),
                     const SizedBox(height: 4),
                     Text(
                       DateFormat('MMM dd, yyyy • hh:mm a').format(notif.createdAt),
@@ -110,7 +95,6 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
                     final user = FirebaseAuth.instance.currentUser;
                     if (user != null) {
                       await ref.read(notificationServiceProvider).markAsRead(user.uid, notif.id);
-                      ref.invalidate(notificationsStreamProvider);
                     }
                   }
                 },
@@ -122,6 +106,7 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
         error: (err, stack) => Center(
           child: Text('Failed to load notifications', style: AppTypography.bodyLarge.copyWith(color: AppColors.error)),
         ),
+      ),
       ),
     );
   }

@@ -61,7 +61,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                     padding: const EdgeInsets.all(20),
                     children: [
                       Text(
-                        'My Cart (${notifier.totalItems} items)',
+                        'Cart (${notifier.totalItems} items)',
                         style: AppTypography.titleLarge.copyWith(fontSize: 20),
                       ),
                       const SizedBox(height: 16),

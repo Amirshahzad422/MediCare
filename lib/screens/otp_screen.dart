@@ -39,8 +39,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
           _registrationData = args;
         }
         _initializedFromArgs = true;
-        _codeSent = true; // Instantly show OTP UI
-        // Schedule request code after build
+        _codeSent = true; 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _requestCode();
         });
@@ -66,7 +65,6 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
     setState(() => _isLoading = true);
 
-    // If it's a login flow (not registration), verify the phone exists in DB FIRST.
     if (_registrationData == null) {
       final authService = AuthService();
       final isRegistered = await authService.isPhoneRegistered(phone);
@@ -123,12 +121,10 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       final currentUser = FirebaseAuth.instance.currentUser;
 
       if (currentUser != null) {
-        // We are already logged in (e.g., came from Registration).
-        // Link the phone credential to this account.
+        
         try {
           await currentUser.linkWithCredential(credential);
         } catch (e) {
-          // Ignore if already linked
         }
         await _savePhoneNumber(phone);
         if (mounted) {
@@ -138,7 +134,6 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
           Navigator.pushReplacementNamed(context, '/dashboard');
         }
       } else {
-        // Logging in via "Continue with Phone"
         final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
         final user = userCredential.user;
         if (user != null) {
@@ -208,11 +203,10 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       );
       
       if (_registrationData != null) {
-        _registrationData!['phone'] = _phoneController.text.trim(); // Update in case user changed it on this screen after a failed send
+        _registrationData!['phone'] = _phoneController.text.trim(); 
         final authService = AuthService();
         await authService.registerWithVerifiedPhone(credential, _registrationData!);
         if (mounted) {
-          // Invalidate profile providers so they fetch the newly created Firestore document
           ref.invalidate(userProfileProvider);
           ref.invalidate(userDocProvider);
           
@@ -380,7 +374,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                             TextButton(
                               onPressed: () {
                                 if (_registrationData != null) {
-                                  Navigator.pop(context); // Go back to register screen
+                                  Navigator.pop(context); 
                                 } else {
                                   setState(() {
                                     _codeSent = false;

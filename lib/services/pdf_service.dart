@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
-/// Generates a styled MediCare prescription PDF.
 class PdfService {
   static Future<Uint8List> generatePrescriptionPdf(
       Map<String, dynamic> presc) async {
@@ -12,14 +11,11 @@ class PdfService {
     final medicines = (presc['medicines'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
 
-    // ── Fetch patient age & gender from Firestore using patientId ──
-    // Age/gender are stored in the 'patients' collection by profile_service.dart
     String patientAge = presc['patientAge']?.toString() ?? 'N/A';
     String patientGender = presc['patientGender']?.toString() ?? 'N/A';
     final patientId = presc['patientId']?.toString();
     if (patientId != null && patientId.isNotEmpty) {
       try {
-        // Primary: patients collection
         final patSnap = await FirebaseFirestore.instance
             .collection('patients')
             .doc(patientId)
@@ -29,7 +25,6 @@ class PdfService {
           patientAge = patData['age']?.toString() ?? patientAge;
           patientGender = patData['gender']?.toString() ?? patientGender;
         }
-        // Fallback: users collection (in case data was saved there)
         if (patientAge == 'N/A' || patientGender == 'N/A') {
           final userSnap = await FirebaseFirestore.instance
               .collection('users')
@@ -52,11 +47,10 @@ class PdfService {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // ─── Header ────────────────────────────────────────────────
               pw.Container(
                 padding: const pw.EdgeInsets.all(20),
                 decoration: pw.BoxDecoration(
-                  color: const PdfColor.fromInt(0xFF052659), // deepBlue
+                  color: const PdfColor.fromInt(0xFF052659),
                   borderRadius: pw.BorderRadius.circular(10),
                 ),
                 child: pw.Row(
@@ -104,11 +98,9 @@ class PdfService {
 
               pw.SizedBox(height: 24),
 
-              // ─── Doctor & Patient info ──────────────────────────────────
               pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  // Doctor
                   pw.Expanded(
                     child: _infoBox(
                       title: 'Prescribing Doctor',
@@ -119,7 +111,6 @@ class PdfService {
                     ),
                   ),
                   pw.SizedBox(width: 16),
-                  // Patient
                   pw.Expanded(
                     child: _infoBox(
                       title: 'Patient Details',
@@ -135,7 +126,6 @@ class PdfService {
 
               pw.SizedBox(height: 20),
 
-              // ─── Diagnosis ─────────────────────────────────────────────
               _sectionTitle('Diagnosis'),
               pw.SizedBox(height: 6),
               pw.Container(
@@ -155,14 +145,12 @@ class PdfService {
 
               pw.SizedBox(height: 20),
 
-              // ─── Medicines table ────────────────────────────────────────
               _sectionTitle('Prescribed Medicines'),
               pw.SizedBox(height: 8),
               pw.Table(
                 border: pw.TableBorder.all(
                     color: const PdfColor.fromInt(0xFFC1E8FF), width: 1),
                 children: [
-                  // Header row
                   pw.TableRow(
                     decoration: const pw.BoxDecoration(
                         color: PdfColor.fromInt(0xFF052659)),
@@ -172,7 +160,6 @@ class PdfService {
                       _tableHeader('Frequency'),
                     ],
                   ),
-                  // Data rows
                   ...medicines.asMap().entries.map((entry) {
                     final i = entry.key;
                     final med = entry.value;
@@ -193,7 +180,6 @@ class PdfService {
 
               pw.SizedBox(height: 20),
 
-              // ─── Notes ─────────────────────────────────────────────────
               if ((presc['notes'] as String?)?.isNotEmpty == true) ...[
                 _sectionTitle('Doctor\'s Notes'),
                 pw.SizedBox(height: 6),
@@ -204,7 +190,6 @@ class PdfService {
 
               pw.Spacer(),
 
-              // ─── Footer ────────────────────────────────────────────────
               pw.Divider(color: const PdfColor.fromInt(0xFFC1E8FF)),
               pw.SizedBox(height: 12),
               pw.Row(

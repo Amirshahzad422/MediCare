@@ -25,6 +25,7 @@ class OrderItem {
 class OrderModel {
   final String id;
   final String patientId;
+  final String patientName;
   final String orderNo;
   final List<OrderItem> items;
   final double subtotal;
@@ -40,6 +41,7 @@ class OrderModel {
   OrderModel({
     required this.id,
     required this.patientId,
+    required this.patientName,
     required this.orderNo,
     required this.items,
     required this.subtotal,
@@ -55,6 +57,7 @@ class OrderModel {
     return OrderModel(
       id: documentId,
       patientId: data['patientId'] ?? '',
+      patientName: data['patientName'] ?? 'Patient',
       orderNo: data['orderNo'] ?? documentId,
       items: (data['items'] as List?)
               ?.map((e) => OrderItem.fromMap(Map<String, dynamic>.from(e as Map)))
@@ -73,6 +76,7 @@ class OrderModel {
   Map<String, dynamic> toMap() {
     return {
       'patientId': patientId,
+      'patientName': patientName,
       'orderNo': orderNo,
       'items': items.map((i) => i.toMap()).toList(),
       'subtotal': subtotal,

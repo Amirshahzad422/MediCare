@@ -66,15 +66,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
         final role = user.role;
         final isDoctor = role == 2;
-        // print'👤 Dashboard: user role = $role, isDoctor = $isDoctor');
 
         if (isDoctor) {
           final doctorProfileAsync = ref.watch(doctorProfileProvider);
           return doctorProfileAsync.when(
             data: (doctor) {
-              // print'📄 Doctor profile from doctors collection: $doctor');
-              if (doctor == null || !doctor.isOnboardingComplete) {
-                // print'❌ Onboarding incomplete, redirecting to /doctor-onboarding');
+              if (doctor == null || !user.isOnboardingComplete) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   Navigator.pushReplacementNamed(context, '/doctor-onboarding');
                 });
@@ -83,7 +80,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   body: Center(child: CircularProgressIndicator(color: AppColors.deepBlue)),
                 );
               }
-              // print'✅ Onboarding complete, building dashboard UI');
               if (!_availabilitySynced) {
                 _availabilitySynced = true;
                 Future.microtask(() => ref.read(profileServiceProvider).syncDoctorAvailability());
@@ -103,7 +99,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           final userDocAsync = ref.watch(userDocProvider);
           return userDocAsync.when(
             data: (userDoc) {
-              if (userDoc == null || userDoc['isOnboardingComplete'] != true) {
+              if (userDoc == null || !user.isOnboardingComplete) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   Navigator.pushReplacementNamed(context, '/patient-onboarding');
                 });
@@ -166,9 +162,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           setState(() {
             _currentIndex = 0;
           });
-          return false; // Prevent pop, go to first tab instead
+          return false; 
         }
-        return true; // Allow pop, exits app
+        return true; 
       },
       child: Scaffold(
         key: _scaffoldKey,

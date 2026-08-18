@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import '../components/filters.dart';
 
-/// Notifier that manages the doctor filter state.
 class DoctorFilterNotifier extends StateNotifier<DoctorFilterState> {
   DoctorFilterNotifier() : super(DoctorFilterState());
 
@@ -49,8 +48,6 @@ class DoctorFilterNotifier extends StateNotifier<DoctorFilterState> {
   DoctorFilterState applyFilters() => state;
 }
 
-/// Holds the active Doctor filter state for the Doctors screen.
-/// Used by the Doctors screen to apply advanced filters and sort criteria.
 final doctorFiltersProvider =
     StateNotifierProvider<DoctorFilterNotifier, DoctorFilterState>((ref) {
   return DoctorFilterNotifier();

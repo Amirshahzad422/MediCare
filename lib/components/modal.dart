@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
 
-/// Shared bottom-sheet / dialog helper used across the app.
 class AppModal {
   static Future<T?> showBottomSheet<T>({
     required BuildContext context,

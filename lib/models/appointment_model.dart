@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class AppointmentStatus {
   static const int upcoming = 1;
   static const int past = 2;
@@ -67,6 +69,7 @@ class AppointmentModel {
       'consultationDuration': consultationDuration,
       'status': status,
       'canBeCancelled': canBeCancelled,
+      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
     };
   }
 }

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/appointment_model.dart';
 
 class CallChatMessage {
   final String id;
@@ -26,12 +27,7 @@ class CallChatMessage {
   }
 }
 
-/// Live call-room state for a video consultation.
-///
-/// Both the patient and the doctor open the SAME call room (keyed by the
-/// appointment id), so both sides see the same live status and chat in
-/// real time. True peer-to-peer media would use Agora/WebRTC on top of
-/// this signaling state.
+
 class CallService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -46,20 +42,22 @@ class CallService {
   CollectionReference<Map<String, dynamic>> _messagesRef(String callId) =>
       _callRef(callId).collection('messages');
 
-  /// Creates the call room document (if missing) from an appointment.
-  Future<String> ensureCallRoom(Map<String, dynamic> appointment) async {
-    final callId = (appointment['callId'] as String?) ?? (appointment['id'] as String);
+  Future<String> ensureCallRoom(AppointmentModel appointment, {String? callIdOverride}) async {
+    final callId = callIdOverride ?? appointment.id;
     final callRef = _callRef(callId);
 
     final snapshot = await callRef.get();
     if (!snapshot.exists) {
+      final patientDoc = await _db.collection('users').doc(appointment.patientId).get();
+      final doctorDoc = await _db.collection('doctors').doc(appointment.doctorId).get();
+
       await callRef.set({
-        'appointmentId': appointment['id'],
-        'doctorName': appointment['doctorName'] ?? 'Doctor',
-        'doctorPhoto': appointment['doctorPhoto'] ?? '',
-        'patientName': appointment['patientName'] ?? 'Patient',
-        'patientPhoto': appointment['patientPhoto'] ?? '',
-        'specialty': appointment['specialty'] ?? 'General Physician',
+        'appointmentId': appointment.id,
+        'doctorName': doctorDoc.data()?['name'] ?? 'Doctor',
+        'doctorPhoto': doctorDoc.data()?['photo'] ?? '',
+        'patientName': patientDoc.data()?['name'] ?? appointment.patientName,
+        'patientPhoto': patientDoc.data()?['photo'] ?? '',
+        'specialty': doctorDoc.data()?['specialty'] ?? 'General Physician',
         'status': statusScheduled,
         'doctorJoined': false,
         'patientJoined': false,
@@ -69,8 +67,6 @@ class CallService {
     return callId;
   }
 
-  /// Marks the caller as joined. When both sides are in, the call goes
-  /// from `ringing` to `connected`.
   Future<void> joinCall(
     String callId, {
     required bool isDoctor,
@@ -106,7 +102,6 @@ class CallService {
     await callRef.update(update);
   }
 
-  /// Live snapshot of the call room.
   Stream<DocumentSnapshot<Map<String, dynamic>>> watchCall(String callId) {
     return _callRef(callId).snapshots();
   }
@@ -116,7 +111,6 @@ class CallService {
     return snapshot.data();
   }
 
-  /// Ends the call and records who ended it.
   Future<void> endCall(String callId, {required String endedBy}) async {
     final callRef = _callRef(callId);
     final snapshot = await callRef.get();

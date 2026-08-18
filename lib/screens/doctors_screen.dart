@@ -11,6 +11,7 @@ import '../components/search_bar.dart';
 import '../providers/doctor_provider.dart';
 import '../providers/filters_provider.dart';
 
+import '../providers/profile_provider.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
 import '../layouts/responsive_layout.dart';
@@ -50,7 +51,7 @@ class _DoctorsScreenState extends ConsumerState<DoctorsScreen> {
           doctor.specialty.toLowerCase() != filter.specialty.toLowerCase()) {
         return false;
       }
-      if (filter.city != 'All Cities' && doctor.city != filter.city) {
+      if (filter.city != 'All Cities' && doctor.city.toLowerCase() != filter.city.toLowerCase()) {
         return false;
       }
       if (doctor.fee < filter.feeRange.start || doctor.fee > filter.feeRange.end) {
@@ -62,7 +63,11 @@ class _DoctorsScreenState extends ConsumerState<DoctorsScreen> {
       if (doctor.experience < filter.minExperience) {
         return false;
       }
-      if (filter.availability == AvailabilityFilter.today && !doctor.availableToday) {
+      if (filter.availability == AvailabilityFilter.today) {
+        final isAvailableToday = doctor.availableToday && TimeOfDay.now().hour < doctor.businessEndHour;
+        if (!isAvailableToday) return false;
+      }
+      if (filter.availability == AvailabilityFilter.thisWeek && doctor.availableDays.isEmpty) {
         return false;
       }
       if (filter.gender != GenderFilter.any &&
@@ -132,35 +137,77 @@ class _DoctorsScreenState extends ConsumerState<DoctorsScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: CustomSearchBar(
-                    controller: _searchController,
-                    onChanged: (value) {
-                      ref.read(doctorFiltersProvider.notifier)
-                          .replace(filters.copyWith(keyword: value));
-                    },
-                    onFilterTap: () => _openFilters(filters),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                _toggleButton(),
-              ],
+            child: CustomSearchBar(
+              controller: _searchController,
+              onChanged: (value) {
+                ref.read(doctorFiltersProvider.notifier)
+                    .replace(filters.copyWith(keyword: value));
+              },
+              onFilterTap: () => _openFilters(filters),
             ),
           ),
+          
+          SizedBox(
+            height: 40,
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              scrollDirection: Axis.horizontal,
+              itemCount: DoctorFilterState.specialties.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final specialty = DoctorFilterState.specialties[index];
+                final isSelected = filters.specialty == specialty;
+                return ChoiceChip(
+                  showCheckmark: false,
+                  label: Text(
+                    specialty,
+                    style: TextStyle(
+                      color: isSelected ? AppColors.white : AppColors.deepBlue,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
+                  selected: isSelected,
+                  selectedColor: AppColors.deepBlue,
+                  backgroundColor: AppColors.white,
+                  side: BorderSide(
+                    color: isSelected ? AppColors.deepBlue : AppColors.iceBlue,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  onSelected: (selected) {
+                    if (selected) {
+                      ref.read(doctorFiltersProvider.notifier)
+                          .replace(filters.copyWith(specialty: specialty));
+                    } else {
+                      ref.read(doctorFiltersProvider.notifier)
+                          .replace(filters.copyWith(specialty: 'All Specialties'));
+                    }
+                  },
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
               children: [
-                if (filters.isActive)
+                if (filters.isActive &&
+                    (filters.specialty != 'All Specialties' ||
+                        filters.city != 'All Cities' ||
+                        filters.minRating > 0 ||
+                        filters.minExperience > 0 ||
+                        filters.feeRange != const RangeValues(0, 200) ||
+                        filters.availability != AvailabilityFilter.any))
                   _activeChip(
                     label: '${filters.specialty != 'All Specialties' ? filters.specialty : filters.city}'
                         '${filters.minRating > 0 ? ' • ${filters.minRating}+★' : ''}',
                     onTap: () => _openFilters(filters),
                   ),
                 const Spacer(),
-                _sortDropdown(filters),
+                _toggleButton(),
               ],
             ),
           ),
@@ -307,65 +354,7 @@ class _DoctorsScreenState extends ConsumerState<DoctorsScreen> {
     );
   }
 
-  Widget _sortDropdown(DoctorFilterState filters) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      decoration: BoxDecoration(
-        color: AppColors.iceBlue.withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.lightBlue.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.sort, size: 16, color: AppColors.mediumBlue),
-          SizedBox(
-            width: 160,
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<DoctorSort>(
-                value: filters.sort,
-                isDense: true,
-                borderRadius: BorderRadius.circular(12),
-                style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.deepBlue,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-                items: DoctorFilterState.sortOptions.map((option) {
-                  return DropdownMenuItem(
-                    value: option,
-                    child: Text(
-                      _sortLabel(option),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    ref.read(doctorFiltersProvider.notifier)
-                        .replace(filters.copyWith(sort: value));
-                  }
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  String _sortLabel(DoctorSort sort) {
-    switch (sort) {
-      case DoctorSort.newest:
-        return 'Newest';
-      case DoctorSort.feeLowToHigh:
-        return 'Fee: Low to High';
-      case DoctorSort.feeHighToLow:
-        return 'Fee: High to Low';
-      case DoctorSort.mostBooked:
-        return 'Most Booked';
-    }
-  }
 
   Widget _grid(List<DoctorModel> all, List<DoctorModel> page) {
     return GridView.builder(
@@ -375,7 +364,7 @@ class _DoctorsScreenState extends ConsumerState<DoctorsScreen> {
         crossAxisCount: 2,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        childAspectRatio: 0.72,
+        childAspectRatio: 0.55,
       ),
       itemCount: page.length,
       itemBuilder: (context, index) => _gridCard(page[index]),
@@ -414,46 +403,55 @@ class _DoctorsScreenState extends ConsumerState<DoctorsScreen> {
           ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Center(
               child: ClipOval(
-                child: doctor.photo.isNotEmpty && doctor.photo.startsWith('http')
-                    ? Image.network(
-                        doctor.photo,
-                        width: 84,
-                        height: 84,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          width: 84,
-                          height: 84,
-                          color: AppColors.iceBlue,
-                          child: const Icon(Icons.person, color: AppColors.deepBlue),
-                        ),
-                      )
-                    : Container(
-                        width: 84,
-                        height: 84,
-                        color: AppColors.iceBlue,
-                        child: const Icon(Icons.person, color: AppColors.deepBlue),
-                      ),
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final userDoc = ref.watch(basicUserByIdProvider(doctor.id)).value;
+                    final photoUrl = userDoc?['photo'] ?? '';
+                    return photoUrl.isNotEmpty && photoUrl.startsWith('http')
+                        ? Image.network(
+                            photoUrl,
+                            width: 84,
+                            height: 84,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              width: 84,
+                              height: 84,
+                              color: AppColors.iceBlue,
+                              child: const Icon(Icons.person, color: AppColors.deepBlue),
+                            ),
+                          )
+                        : Container(
+                            width: 84,
+                            height: 84,
+                            color: AppColors.iceBlue,
+                            child: const Icon(Icons.person, color: AppColors.deepBlue),
+                          );
+                  },
+                ),
               ),
             ),
             const SizedBox(height: 10),
             Text(
               doctor.name,
+              textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTypography.titleLarge.copyWith(fontSize: 15),
             ),
             Text(
               doctor.specialty,
+              textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTypography.bodyMedium.copyWith(fontSize: 11),
             ),
             const SizedBox(height: 8),
             Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(Icons.star, color: Colors.amber, size: 14),
                 const SizedBox(width: 4),
@@ -475,6 +473,7 @@ class _DoctorsScreenState extends ConsumerState<DoctorsScreen> {
             const SizedBox(height: 8),
             Text(
               '\$${doctor.fee.toStringAsFixed(0)}',
+              textAlign: TextAlign.center,
               style: AppTypography.titleLarge.copyWith(
                 fontSize: 16,
                 color: AppColors.deepBlue,

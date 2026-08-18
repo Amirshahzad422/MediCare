@@ -6,12 +6,14 @@ class CustomSearchBar extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final VoidCallback? onFilterTap;
+  final bool showSearchIcon;
 
   const CustomSearchBar({
     super.key,
     required this.controller,
     required this.onChanged,
     this.onFilterTap,
+    this.showSearchIcon = true,
   });
 
   @override
@@ -29,7 +31,7 @@ class CustomSearchBar extends StatelessWidget {
         decoration: InputDecoration(
           hintText: 'Search doctors or specialties...',
           hintStyle: AppTypography.bodyMedium,
-          prefixIcon: const Icon(Icons.search, color: AppColors.mediumBlue),
+          prefixIcon: showSearchIcon ? const Icon(Icons.search, color: AppColors.mediumBlue) : null,
           suffixIcon: onFilterTap != null
               ? IconButton(
                   icon: const Icon(Icons.tune, color: AppColors.deepBlue),

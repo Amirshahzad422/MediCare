@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
 
-/// Shared in-call control bar (mute, camera toggle, chat, end call).
 class VideoCallControls extends StatelessWidget {
   final bool isMuted;
   final bool isCameraOff;
@@ -90,7 +89,6 @@ class _ControlButton extends StatelessWidget {
   }
 }
 
-/// Self-view placeholder shown in a video call before camera is ready.
 class SelfViewPlaceholder extends StatelessWidget {
   final String doctorPhoto;
   final String? errorMessage;

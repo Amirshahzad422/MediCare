@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/doctor_model.dart';
 import '../providers/appointments_provider.dart';
 import '../components/slot_picker.dart' hide formatDateKey;
+import '../providers/profile_provider.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
 import 'package:intl/intl.dart';
+import '../layouts/responsive_layout.dart';
 
 class BookingScreen extends ConsumerStatefulWidget {
   const BookingScreen({super.key});
@@ -48,12 +50,15 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
     if (date.year == now.year && date.month == now.month && date.day == now.day) {
       final currentTime = TimeOfDay.fromDateTime(now);
       allSlots = allSlots.where((slot) {
-        final slotTime = DateFormat('hh:mm a').parse(slot);
-        final slotHour = slotTime.hour;
-        final slotMinute = slotTime.minute;
-        if (slotHour > currentTime.hour) return true;
-        if (slotHour == currentTime.hour && slotMinute > currentTime.minute) return true;
-        return false;
+        try {
+          final slotTime = DateFormat('h:mm a').parse(slot);
+          final slotHour = slotTime.hour;
+          final slotMinute = slotTime.minute;
+          final isFuture = (slotHour > currentTime.hour) || (slotHour == currentTime.hour && slotMinute > currentTime.minute);
+          return isFuture;
+        } catch (e) {
+          return true; // fallback to showing the slot if parsing fails
+        }
       }).toList();
     }
     return allSlots;
@@ -64,23 +69,16 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
     final args = ModalRoute.of(context)?.settings.arguments;
 
     if (args == null || args is! DoctorModel) {
-      return Scaffold(
-        backgroundColor: AppColors.white,
-        appBar: AppBar(
+      return ResponsiveLayout(
+        currentRoute: '/booking',
+        child: Scaffold(
           backgroundColor: AppColors.white,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.darkNavy),
-            onPressed: () => Navigator.pushReplacementNamed(context, '/dashboard'),
-          ),
-          title: Text('Booking Error', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
-          centerTitle: true,
-        ),
         body: Center(
           child: Text(
             'No doctor data found. Please select a doctor again.',
             style: AppTypography.bodyLarge,
           ),
+        ),
         ),
       );
     }
@@ -88,22 +86,16 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
     final doctor = args;
 
     final String dayName = DateFormat('EEEE').format(_selectedDate);
-    final bool isAvailableDay = doctor.availableDays.contains(dayName);
+    final now = DateTime.now();
+    final bool isToday = _selectedDate.year == now.year && _selectedDate.month == now.month && _selectedDate.day == now.day;
+    final bool isAvailableDay = doctor.availableDays.contains(dayName) || (isToday && doctor.availableToday);
     final dateStr = formatDateKey(_selectedDate);
     final bookedSlotsAsync = ref.watch(bookedSlotsProvider('${doctor.id}_$dateStr'));
 
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      appBar: AppBar(
+    return ResponsiveLayout(
+      currentRoute: '/booking',
+      child: Scaffold(
         backgroundColor: AppColors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.darkNavy),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text('Book Appointment', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
-        centerTitle: true,
-      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -186,6 +178,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
             _bottomBar(doctor),
           ],
         ),
+        ),
       ),
     );
   }
@@ -222,25 +215,31 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(10),
-          child: doctor.photo.isNotEmpty && doctor.photo.startsWith('http')
-              ? Image.network(
-                  doctor.photo,
-                  width: 52,
-                  height: 52,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    width: 52,
-                    height: 52,
-                    color: AppColors.iceBlue,
-                    child: const Icon(Icons.person, color: AppColors.deepBlue),
-                  ),
-                )
-              : Container(
-                  width: 52,
-                  height: 52,
-                  color: AppColors.iceBlue,
-                  child: const Icon(Icons.person, color: AppColors.deepBlue),
-                ),
+          child: Consumer(
+            builder: (context, ref, _) {
+              final userDoc = ref.watch(basicUserByIdProvider(doctor.id)).value;
+              final photoUrl = userDoc?['photo'] ?? '';
+              return photoUrl.isNotEmpty && photoUrl.startsWith('http')
+                  ? Image.network(
+                      photoUrl,
+                      width: 52,
+                      height: 52,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        width: 52,
+                        height: 52,
+                        color: AppColors.iceBlue,
+                        child: const Icon(Icons.person, color: AppColors.deepBlue),
+                      ),
+                    )
+                  : Container(
+                      width: 52,
+                      height: 52,
+                      color: AppColors.iceBlue,
+                      child: const Icon(Icons.person, color: AppColors.deepBlue),
+                    );
+            },
+          ),
         ),
         const SizedBox(width: 12),
         Expanded(

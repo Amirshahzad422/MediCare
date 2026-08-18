@@ -16,19 +16,6 @@ class DoctorRecordsScreen extends StatelessWidget {
       showFooter: false,
       child: Scaffold(
         backgroundColor: AppColors.white,
-        appBar: AppBar(
-          backgroundColor: AppColors.white,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.deepBlue),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Text(
-            'Patient Records',
-            style: AppTypography.titleLarge.copyWith(fontSize: 20, color: AppColors.darkNavy),
-          ),
-          centerTitle: true,
-        ),
         body: RecordsView(doctorId: doctorId, doctorName: '',),
       ),
     );

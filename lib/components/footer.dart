@@ -3,7 +3,6 @@ import '../styles/colors.dart';
 import '../styles/typography.dart';
 import 'app_bar.dart';
 
-/// Shared footer shown on wide screens within the responsive layout.
 class AppFooter extends StatelessWidget {
   final String currentRoute;
 

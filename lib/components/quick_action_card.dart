@@ -36,7 +36,7 @@ class QuickActionCard extends StatelessWidget {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.max, // Helps with stretching
+          mainAxisSize: MainAxisSize.max, 
           children: [
             Container(
               padding: const EdgeInsets.all(10),

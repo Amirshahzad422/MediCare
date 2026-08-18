@@ -19,7 +19,7 @@ class _DoctorOnboardingScreenState extends ConsumerState<DoctorOnboardingScreen>
   String? _selectedSpecialty;
   String? _selectedCity;
   String? _selectedDegree;
-  String? _selectedDuration = '30'; // Default 30 mins
+  String? _selectedDuration = '30'; 
 
   final _otherSpecialtyController = TextEditingController();
   final _otherCityController = TextEditingController();
@@ -32,8 +32,8 @@ class _DoctorOnboardingScreenState extends ConsumerState<DoctorOnboardingScreen>
   final List<String> _allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   final List<String> _durations = ['15', '30', '45', '60'];
 
-  int _businessStartHour = 8;  // default 8 AM
-  int _businessEndHour = 18;   // default 6 PM
+  int _businessStartHour = 8;  
+  int _businessEndHour = 18;   
 
   bool _isLoading = false;
 
@@ -82,7 +82,6 @@ class _DoctorOnboardingScreenState extends ConsumerState<DoctorOnboardingScreen>
       for (int minute = 0; minute < 60; minute += durationMinutes) {
         final slotStart = hour * 60 + minute;
         final slotEnd = slotStart + durationMinutes;
-        // Only include if slot is fully within business hours
         if (slotStart >= startMinutes && slotEnd <= endMinutes) {
           final period = hour < 12 ? 'AM' : 'PM';
           int displayHour = hour % 12;
@@ -128,6 +127,8 @@ class _DoctorOnboardingScreenState extends ConsumerState<DoctorOnboardingScreen>
     final userProfile = await ref.read(userProfileProvider.future);
     final String doctorName = userProfile?.name ?? user.displayName ?? 'Doctor';
     final String doctorEmail = userProfile?.email ?? user.email ?? '';
+    final String doctorPhone = userProfile?.phone ?? '';
+    final String doctorPhoto = userProfile?.photo ?? '';
 
     final String todayName = _allDays[DateTime.now().weekday - 1];
     final bool isAvailableToday = _selectedDays.contains(todayName);
@@ -152,11 +153,11 @@ class _DoctorOnboardingScreenState extends ConsumerState<DoctorOnboardingScreen>
       availableDays: _selectedDays,
       qualifications: finalDegree,
       availableToday: isAvailableToday,
-      isOnboardingComplete: true,
       businessStartHour: _businessStartHour,
       businessEndHour: _businessEndHour,
-      photo: '',
       email: doctorEmail,
+      phone: doctorPhone,
+      photo: doctorPhoto,
     );
 
     if (success) {
@@ -210,12 +211,9 @@ class _DoctorOnboardingScreenState extends ConsumerState<DoctorOnboardingScreen>
               _buildInput('Experience (Years)', _experienceController, Icons.timeline, isNumber: true, isRequired: true),
               _buildInput('Short Biography', _bioController, Icons.description_outlined, maxLines: 3, isRequired: false),
 
-              // ---------- AVAILABILITY SECTION ----------
               const Divider(height: 32, thickness: 1),
               Text('Set Your Availability', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
               const SizedBox(height: 16),
-
-              // Days
               Text('Available Days', style: AppTypography.titleMedium),
               const SizedBox(height: 6),
               Text('Select the days you are available for consultations.', style: AppTypography.bodyMedium),
@@ -245,7 +243,6 @@ class _DoctorOnboardingScreenState extends ConsumerState<DoctorOnboardingScreen>
               ),
               const SizedBox(height: 24),
 
-              // Duration Dropdown
               Text('Consultation Duration', style: AppTypography.titleMedium),
               const SizedBox(height: 6),
               Text('How long does each session usually last?', style: AppTypography.bodyMedium),

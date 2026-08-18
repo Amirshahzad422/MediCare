@@ -2,49 +2,42 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/appointment_model.dart';
 import 'auth_provider.dart';
 
-final appointmentsStreamProvider = StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
+final appointmentsStreamProvider = StreamProvider.autoDispose<List<AppointmentModel>>((ref) {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) {
-    print('--- appointmentsStreamProvider: user is null');
     return Stream.value([]);
   }
   
   final profileAsync = ref.watch(userProfileProvider);
   return profileAsync.when(
     data: (profile) {
-      print('--- appointmentsStreamProvider: user=${user.uid}, profile=$profile');
       if (profile == null) return Stream.value([]);
 
       Query query = FirebaseFirestore.instance.collection('appointments');
       
       if (profile.role == 2) {
-        print('--- appointmentsStreamProvider: filtering for doctorId=${user.uid}');
         query = query.where('doctorId', isEqualTo: user.uid);
       } else {
-        print('--- appointmentsStreamProvider: filtering for patientId=${user.uid}');
         query = query.where('patientId', isEqualTo: user.uid);
       }
 
       return query.snapshots().map((snapshot) {
         final list = snapshot.docs.map((doc) {
           final data = doc.data() as Map<String, dynamic>;
-          data['id'] = doc.id;
-          return data;
+          return AppointmentModel.fromMap(data, doc.id);
         }).toList();
-        print('--- appointmentsStreamProvider: returned ${list.length} appointments');
         return list;
       });
     },
     loading: () {
-      print('--- appointmentsStreamProvider: profile is loading, returning pending stream');
-      final controller = StreamController<List<Map<String, dynamic>>>();
+      final controller = StreamController<List<AppointmentModel>>();
       ref.onDispose(() => controller.close());
       return controller.stream;
     },
     error: (err, stack) {
-      print('--- appointmentsStreamProvider: profile error=$err');
       return Stream.value([]);
     },
   );

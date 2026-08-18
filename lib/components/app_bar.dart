@@ -12,30 +12,13 @@ class BrandLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.iceBlue : AppColors.deepBlue,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(
-            Icons.medical_services,
-            size: 20,
-            color: isDark ? AppColors.deepBlue : AppColors.white,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          'MediCare',
-          style: isDark
-              ? AppTypography.titleLarge.copyWith(fontSize: 20, color: AppColors.white)
-              : AppTypography.titleLarge.copyWith(fontSize: 20),
-        ),
-      ],
+    return Center(
+      child: Text(
+        'MediCare',
+        style: isDark
+            ? AppTypography.titleLarge.copyWith(fontSize: 20, color: AppColors.white)
+            : AppTypography.titleLarge.copyWith(fontSize: 20),
+      ),
     );
   }
 }
@@ -61,33 +44,74 @@ class CustomAppBar extends ConsumerWidget {
     ('/contact', 'Contact', Icons.mail_outline),
   ];
 
+  static const List<String> rootRoutes = [
+    '/',
+    '/doctor-dashboard',
+    '/doctors',
+    '/appointments',
+    '/pharmacy',
+    '/prescriptions',
+    '/orders',
+    '/profile',
+    '/notifications',
+    '/reviews',
+    '/about',
+    '/contact',
+    '/settings',
+  ];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authStateProvider);
     final user = authState.value;
     final width = MediaQuery.of(context).size.width;
     final isWide = width >= 900;
+    final showBack = Navigator.of(context).canPop() && !rootRoutes.contains(currentRoute);
 
     return Material(
-      color: AppColors.deepBlue,
+      color: AppColors.white,
       elevation: 0,
       child: SafeArea(
         bottom: false,
         child: Container(
           height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: EdgeInsets.only(left: isWide ? 20 : 8, right: 20),
           child: Row(
             children: [
-              if (!isWide)
-                IconButton(
-                  icon: const Icon(Icons.menu, color: AppColors.white, size: 28),
-                  onPressed: () => _openDrawer(scaffoldContext ?? context),
+              if (!isWide) ...[
+                if (showBack)
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, color: AppColors.deepBlue, size: 28),
+                    onPressed: () => Navigator.pop(context),
+                  )
+                else
+                  IconButton(
+                    icon: const Icon(Icons.menu, color: AppColors.deepBlue, size: 28),
+                    onPressed: () => _openDrawer(scaffoldContext ?? context),
+                  ),
+                Expanded(
+                  child: Center(
+                    child: _buildTitle(context, currentRoute, false),
+                  ),
                 ),
-              GestureDetector(
-                onTap: () => Navigator.pushNamed(context, '/'),
-                child: const BrandLogo(isDark: true),
-              ),
+                if (user != null)
+                  _NotificationIcon(
+                    onPressed: onNotify ?? () {},
+                    ref: ref,
+                  )
+                else
+                  const SizedBox(width: 8),
+              ],
               if (isWide) ...[
+                if (showBack)
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, color: AppColors.deepBlue, size: 28),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/'),
+                  child: const BrandLogo(isDark: false),
+                ),
                 const SizedBox(width: 32),
                 Expanded(
                   child: Row(
@@ -102,37 +126,30 @@ class CustomAppBar extends ConsumerWidget {
                     ],
                   ),
                 ),
-              ] else
-                const Spacer(),
-              if (isWide && user == null) ...[
-                TextButton(
-                  onPressed: () => Navigator.pushNamed(context, '/login'),
-                  child: Text(
-                    'Login',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.white,
-                      fontWeight: FontWeight.bold,
+                if (user == null) ...[
+                  TextButton(
+                    onPressed: () => Navigator.pushNamed(context, '/login'),
+                    child: Text(
+                      'Login',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.deepBlue,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                _LoginCta(onTap: () => Navigator.pushNamed(context, '/register')),
+                  const SizedBox(width: 8),
+                  _LoginCta(onTap: () => Navigator.pushNamed(context, '/register')),
+                ] else ...[
+                  _NotificationIcon(
+                    onPressed: onNotify ?? () {},
+                    ref: ref,
+                  ),
+                  _AvatarButton(
+                    isDark: false,
+                    onTap: () => Navigator.pushNamed(context, '/profile'),
+                  ),
+                ],
               ],
-              if (isWide && user != null) ...[
-                _NotificationIcon(
-                  onPressed: onNotify ?? () {},
-                  ref: ref,
-                ),
-                _AvatarButton(
-                  isDark: true,
-                  onTap: () => Navigator.pushNamed(context, '/profile'),
-                ),
-              ],
-              if (!isWide && user != null)
-                _NotificationIcon(
-                  onPressed: onNotify ?? () {},
-                  ref: ref,
-                ),
             ],
           ),
         ),
@@ -142,6 +159,65 @@ class CustomAppBar extends ConsumerWidget {
 
   void _openDrawer(BuildContext ctx) {
     Scaffold.of(ctx).openDrawer();
+  }
+
+  Widget _buildTitle(BuildContext context, String route, bool isDark) {
+    if (route == '/' || route == '/doctor-dashboard' || route.isEmpty) {
+      return GestureDetector(
+        onTap: () => Navigator.pushNamed(context, route.isEmpty ? '/' : route),
+        child: BrandLogo(isDark: isDark),
+      );
+    }
+
+    String titleText = 'MediCare';
+    switch (route) {
+      case '/appointments':
+        titleText = 'Appointments';
+        break;
+      case '/doctors':
+        titleText = 'Doctors';
+        break;
+      case '/pharmacy':
+        titleText = 'Pharmacy';
+        break;
+      case '/profile':
+        titleText = 'Profile';
+        break;
+      case '/doctor-records':
+        titleText = 'Patient Records';
+        break;
+      case '/about':
+        titleText = 'About Us';
+        break;
+      case '/contact':
+        titleText = 'Contact Us';
+        break;
+      case '/settings':
+        titleText = 'Settings';
+        break;
+      case '/dashboard':
+        titleText = 'Dashboard';
+        break;
+      case '/notifications':
+        titleText = 'Notifications';
+        break;
+      default:
+        if (route.startsWith('/')) {
+          final stripped = route.substring(1);
+          if (stripped.isNotEmpty) {
+            titleText = stripped.split('-').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '').join(' ');
+          }
+        }
+    }
+
+    return Text(
+      titleText,
+      textAlign: TextAlign.center,
+      style: AppTypography.titleLarge.copyWith(
+        fontSize: 16,
+        color: isDark ? AppColors.white : AppColors.deepBlue,
+      ),
+    );
   }
 }
 
@@ -163,27 +239,29 @@ class _NotificationIcon extends ConsumerWidget {
         IconButton(
           tooltip: 'Notifications',
           onPressed: onPressed,
-          icon: const Icon(Icons.notifications_none, color: AppColors.white),
+          icon: const Icon(Icons.notifications_none, color: AppColors.deepBlue),
         ),
         if (count > 0)
           Positioned(
             right: 8,
             top: 8,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: const BoxDecoration(
-                color: Colors.red,
-                shape: BoxShape.circle,
-              ),
-              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-              child: Text(
-                count > 99 ? '99+' : count.toString(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
+            child: IgnorePointer(
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
                 ),
-                textAlign: TextAlign.center,
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                child: Text(
+                  count > 99 ? '99+' : count.toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
           ),
@@ -276,19 +354,19 @@ class _NavLinkState extends State<_NavLink> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: widget.isActive || _hovered
-                ? AppColors.mediumBlue.withOpacity(0.85)
+                ? AppColors.iceBlue
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(widget.icon, size: 16, color: AppColors.iceBlue),
+              Icon(widget.icon, size: 16, color: widget.isActive ? AppColors.deepBlue : AppColors.grey),
               const SizedBox(width: 6),
               Text(
                 widget.label,
                 style: AppTypography.bodyMedium.copyWith(
-                  color: widget.isActive ? AppColors.white : AppColors.iceBlue,
+                  color: widget.isActive ? AppColors.deepBlue : AppColors.grey,
                   fontWeight: widget.isActive ? FontWeight.bold : FontWeight.normal,
                 ),
               ),

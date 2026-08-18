@@ -9,7 +9,6 @@ final medicinesProvider = StreamProvider<List<MedicineModel>>((ref) {
   return service.watchMedicines();
 });
 
-/// One-shot fetch used for actions like reorder matching by name.
 final medicinesOnceProvider = FutureProvider<List<MedicineModel>>((ref) async {
   final service = ref.watch(medicineServiceProvider);
   return service.getAllMedicines();

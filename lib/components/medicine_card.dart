@@ -89,7 +89,7 @@ class MedicineCard extends ConsumerWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
+        borderRadius: BorderRadius.circular(10),
         color: AppColors.white,
         border: Border.all(
           color: AppColors.lightBlue.withValues(alpha: 0.3),
@@ -103,7 +103,8 @@ class MedicineCard extends ConsumerWidget {
           ),
         ],
       ),
-      child: ClipOval(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(9),
         child: medicine.image.isNotEmpty && medicine.image.startsWith('http')
             ? Image.network(
                 medicine.image,

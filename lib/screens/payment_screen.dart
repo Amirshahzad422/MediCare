@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/doctor_model.dart';
+import '../models/appointment_model.dart';
+import '../services/payment_service.dart';
 import '../services/profile_service.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
+import '../layouts/responsive_layout.dart';
 
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({super.key});
@@ -18,8 +21,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   double _discount = 0.0;
   bool _isPromoApplied = false;
   bool _isProcessing = false;
-  String _selectedMethod = 'Card';
-  String? _failureMessage;  // F7: failure state
+  String? _failureMessage;  
 
   @override
   void dispose() {
@@ -62,17 +64,26 @@ class _PaymentScreenState extends State<PaymentScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('User not logged in');
 
-      await FirebaseFirestore.instance.collection('appointments').add({
-        'patientId': user.uid,
-        'patientName': user.displayName ?? 'Patient',
-        'doctorId': doctor.id,
-        'date': '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
-        'slot': slot,
-        'type': type,
-        'amount': total,
-        'status': 1,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      final paymentSuccess = await PaymentService().processPayment(total);
+      if (!paymentSuccess) {
+        throw Exception('Payment was declined or cancelled');
+      }
+
+      final newAppointment = AppointmentModel(
+        id: '',
+        patientId: user.uid,
+        patientName: user.displayName ?? 'Patient',
+        doctorId: doctor.id,
+        date: '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
+        slot: slot,
+        type: type,
+        amount: total,
+        status: 1,
+        consultationDuration: doctor.consultationDuration,
+        createdAt: DateTime.now(),
+      );
+
+      await FirebaseFirestore.instance.collection('appointments').add(newAppointment.toMap());
 
       await ProfileService().incrementBookedCount(doctor.name);
 
@@ -110,7 +121,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       context,
                       '/dashboard',
                       (route) => false,
-                      arguments: {'initialIndex': 1},
+                      arguments: {'initialIndex': 1, 'appointmentsTabIndex': 1},
                     );
                   },
                   style: ElevatedButton.styleFrom(
@@ -128,7 +139,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      // F7: Show inline failure banner instead of just a snack bar
       setState(() {
         _failureMessage = 'Payment failed: ${e.toString()}. Please try again.';
         _isProcessing = false;
@@ -145,23 +155,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
     final routeArgs = ModalRoute.of(context)?.settings.arguments;
 
     if (routeArgs == null || routeArgs is! Map<String, dynamic>) {
-      return Scaffold(
-        backgroundColor: AppColors.white,
-        appBar: AppBar(
+      return ResponsiveLayout(
+        currentRoute: '/payment',
+        child: Scaffold(
           backgroundColor: AppColors.white,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.darkNavy),
-            onPressed: () => Navigator.pushReplacementNamed(context, '/dashboard'),
-          ),
-          title: Text('Payment Error', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
-          centerTitle: true,
-        ),
         body: Center(
           child: Text(
             'No booking data found. Please select a slot again.',
             style: AppTypography.bodyLarge,
           ),
+        ),
         ),
       );
     }
@@ -176,22 +179,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
     const bookingFee = 5.0;
     final total = subtotal + bookingFee - _discount;
 
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      appBar: AppBar(
+    return ResponsiveLayout(
+      currentRoute: '/payment',
+      child: Scaffold(
         backgroundColor: AppColors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.darkNavy),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text('Payment Details', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
-        centerTitle: true,
-      ),
       body: SafeArea(
         child: Column(
           children: [
-            // F7: Failure state banner
             if (_failureMessage != null)
               Container(
                 width: double.infinity,
@@ -267,54 +261,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 28),
-                    Text('Payment Method', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => setState(() => _selectedMethod = 'Card'),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              decoration: BoxDecoration(
-                                color: _selectedMethod == 'Card' ? AppColors.deepBlue : AppColors.iceBlue.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: _selectedMethod == 'Card' ? AppColors.deepBlue : AppColors.lightBlue.withValues(alpha: 0.3)),
-                              ),
-                              child: Column(
-                                children: [
-                                  Icon(Icons.credit_card, color: _selectedMethod == 'Card' ? AppColors.white : AppColors.deepBlue),
-                                  const SizedBox(height: 8),
-                                  Text('Credit/Debit', style: AppTypography.bodyMedium.copyWith(color: _selectedMethod == 'Card' ? AppColors.white : AppColors.deepBlue, fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => setState(() => _selectedMethod = 'Wallet'),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              decoration: BoxDecoration(
-                                color: _selectedMethod == 'Wallet' ? AppColors.deepBlue : AppColors.iceBlue.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: _selectedMethod == 'Wallet' ? AppColors.deepBlue : AppColors.lightBlue.withValues(alpha: 0.3)),
-                              ),
-                              child: Column(
-                                children: [
-                                  Icon(Icons.account_balance_wallet, color: _selectedMethod == 'Wallet' ? AppColors.white : AppColors.deepBlue),
-                                  const SizedBox(height: 8),
-                                  Text('JazzCash / EP', style: AppTypography.bodyMedium.copyWith(color: _selectedMethod == 'Wallet' ? AppColors.white : AppColors.deepBlue, fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
                     ),
                     const SizedBox(height: 28),
                     Text('Promo Code', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
@@ -401,6 +347,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

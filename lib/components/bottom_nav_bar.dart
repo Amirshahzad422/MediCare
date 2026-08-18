@@ -18,8 +18,6 @@ class CustomBottomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDoctor = role == 2;
 
-    // Doctor: Dashboard | Appointments | Profile (3 items)
-    // Patient: Home | Appointments | Pharmacy | Prescriptions | Profile (5 items)
     final items = isDoctor
         ? const [
             BottomNavigationBarItem(
@@ -66,7 +64,6 @@ class CustomBottomNavBar extends StatelessWidget {
             ),
           ];
 
-    // Clamp index to valid range for current role
     final safeIndex = currentIndex.clamp(0, items.length - 1);
 
     return Container(

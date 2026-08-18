@@ -12,9 +12,12 @@ import '../styles/typography.dart';
 
 import '../providers/profile_provider.dart';
 import 'prescription_writer_sheet.dart';
+import '../screens/review_screen.dart';
+
+import '../models/appointment_model.dart';
 
 class AppointmentCard extends StatefulWidget {
-  final Map<String, dynamic> app;
+  final AppointmentModel app;
   final int status;
   final Color statusColor;
   final Color statusBg;
@@ -39,12 +42,12 @@ class _AppointmentCardState extends State<AppointmentCard> {
   @override
   Widget build(BuildContext context) {
     final app = widget.app;
-    final dateStr = app['date'] ?? '';
-    final slotStr = app['slot'] ?? '';
-    final type = app['type'] ?? 'Video';
+    final dateStr = app.date;
+    final slotStr = app.slot;
+    final type = app.type;
 
-    final doctorId = app['doctorId'] as String? ?? '';
-    final patientId = app['patientId'] as String? ?? '';
+    final doctorId = app.doctorId;
+    final patientId = app.patientId;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -71,16 +74,17 @@ class _AppointmentCardState extends State<AppointmentCard> {
 
               if (widget.isDoctor) {
                 final patient = ref.watch(patientByIdProvider(patientId)).value;
-                name = patient?['name'] ?? app['patientName'] ?? 'Patient';
+                name = patient?['name'] ?? app.patientName;
                 photo = patient?['photo'] ?? '';
                 final age = patient?['age']?.toString() ?? '--';
                 final gender = patient?['gender'] ?? '--';
                 subtitle = 'Age: $age • Gender: $gender';
               } else {
                 final doctor = ref.watch(doctorByIdProvider(doctorId)).value;
-                name = doctor?.name ?? app['doctorName'] ?? 'Doctor';
-                photo = doctor?.photo ?? app['doctorPhoto'] ?? '';
-                final specialty = doctor?.specialty ?? app['specialty'] ?? 'Consultation';
+                final userDoc = ref.watch(basicUserByIdProvider(doctorId)).value;
+                name = doctor?.name ?? 'Doctor';
+                photo = userDoc?['photo'] ?? '';
+                final specialty = doctor?.specialty ?? 'Consultation';
                 subtitle = specialty;
               }
 
@@ -247,6 +251,24 @@ class _AppointmentCardState extends State<AppointmentCard> {
                   ),
                 ),
               ),
+            ] else ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => _openReviewWriter(context),
+                icon: const Icon(Icons.rate_review, size: 18),
+                label: Text(
+                  'Write Review',
+                  style: AppTypography.buttonText.copyWith(fontSize: 13, color: AppColors.deepBlue),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.deepBlue,
+                  side: const BorderSide(color: AppColors.deepBlue),
+                  minimumSize: const Size(double.infinity, 44),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
             ],
           ],
         ],
@@ -271,26 +293,37 @@ class _AppointmentCardState extends State<AppointmentCard> {
             doctorName: doctorName,
             specialty: specialty,
             doctorPhoto: photo,
-            prefilledPatientId: widget.app['patientId'],
-            prefilledPatientName: widget.app['patientName'],
+            prefilledPatientId: widget.app.patientId,
+            prefilledPatientName: widget.app.patientName,
           );
         },
       ),
     );
   }
 
-  Future<void> _joinCall(BuildContext context, Map<String, dynamic> app) async {
+  void _openReviewWriter(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => AddReviewSheet(doctorId: widget.app.doctorId),
+    );
+  }
+
+  Future<void> _joinCall(BuildContext context, AppointmentModel app) async {
     setState(() => _joiningCall = true);
     try {
       final user = FirebaseAuth.instance.currentUser;
-      final amIPatient = app['patientId'] == user?.uid;
+      final amIPatient = app.patientId == user?.uid;
       final callId = await CallService().ensureCallRoom(app);
       if (!context.mounted) return;
       Navigator.pushNamed(
         context,
         '/video-call',
         arguments: {
-          ...app,
+          ...app.toMap(),
+          'id': app.id,
           'callId': callId,
           'isDoctor': !amIPatient,
         },
@@ -300,21 +333,10 @@ class _AppointmentCardState extends State<AppointmentCard> {
     }
   }
 
-  Future<void> _reschedule(BuildContext context, Map<String, dynamic> app) async {
-    String? doctorId = app['doctorId'] as String?;
-    if (doctorId == null || doctorId.isEmpty) {
-      final doctorName = app['doctorName'] as String?;
-      if (doctorName != null) {
-        try {
-          final snapshot = await FirebaseFirestore.instance.collection('doctors').where('name', isEqualTo: doctorName).limit(1).get();
-          if (snapshot.docs.isNotEmpty) {
-            doctorId = snapshot.docs.first.id;
-          }
-        } catch (_) {}
-      }
-    }
+  Future<void> _reschedule(BuildContext context, AppointmentModel app) async {
+    String doctorId = app.doctorId;
 
-    if (doctorId == null || doctorId.isEmpty) {
+    if (doctorId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Doctor ID not found. Please cancel and re-book.')),
       );
@@ -338,13 +360,13 @@ class _AppointmentCardState extends State<AppointmentCard> {
 
   Future<void> _showRescheduleDialog(
       BuildContext context,
-      Map<String, dynamic> app,
+      AppointmentModel app,
       DoctorModel doctor,
       ProviderContainer container,
       ) async {
     DateTime originalDate = DateTime.now();
     try {
-      originalDate = DateFormat('yyyy-MM-dd').parse(app['date'] ?? '');
+      originalDate = DateFormat('yyyy-MM-dd').parse(app.date);
     } catch (_) {}
     final firstAllowedDate = originalDate.isBefore(DateTime.now()) ? DateTime.now() : originalDate;
 
@@ -517,7 +539,7 @@ class _AppointmentCardState extends State<AppointmentCard> {
       final dateStr = DateFormat('yyyy-MM-dd').format(selectedDate);
       await FirebaseFirestore.instance
           .collection('appointments')
-          .doc(app['id'])
+          .doc(app.id)
           .update({
         'date': dateStr,
         'slot': selectedSlot,
@@ -561,7 +583,7 @@ class _AppointmentCardState extends State<AppointmentCard> {
     return slots;
   }
 
-  Future<void> _cancel(BuildContext context, Map<String, dynamic> app) async {
+  Future<void> _cancel(BuildContext context, AppointmentModel app) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -570,7 +592,7 @@ class _AppointmentCardState extends State<AppointmentCard> {
         title: Text('Cancel Appointment?',
             style: AppTypography.titleLarge.copyWith(fontSize: 18)),
         content: Text(
-          'Your appointment with ${app['doctorName']} on ${app['date']} at ${app['slot']} '
+          'Your appointment on ${app.date} at ${app.slot} '
               'will be cancelled.',
           style: AppTypography.bodyLarge,
         ),
@@ -598,7 +620,7 @@ class _AppointmentCardState extends State<AppointmentCard> {
     try {
       await FirebaseFirestore.instance
           .collection('appointments')
-          .doc(app['id'])
+          .doc(app.id)
           .update({'status': 3});
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

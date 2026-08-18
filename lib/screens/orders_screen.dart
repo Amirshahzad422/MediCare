@@ -32,65 +32,62 @@ class OrdersScreen extends ConsumerWidget {
         currentRoute: '/orders',
         child: Scaffold(
           backgroundColor: AppColors.white,
-          appBar: AppBar(
-            backgroundColor: AppColors.white,
-            elevation: 0,
-            title: Text('My Orders', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
-            centerTitle: true,
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(48),
-              child: Container(
-                alignment: Alignment.centerLeft,
-                child: const TabBar(
-                  isScrollable: true,
-                  tabAlignment: TabAlignment.start,
-                  labelPadding: EdgeInsets.symmetric(horizontal: 16),
-                  dividerColor: Colors.transparent,
-                  indicatorColor: AppColors.deepBlue,
-                  labelColor: AppColors.deepBlue,
-                  unselectedLabelColor: AppColors.grey,
-                  tabs: [
-                    Tab(text: 'All'),
-                    Tab(text: 'Placed'),
-                    Tab(text: 'Packed'),
-                    Tab(text: 'Shipped'),
-                    Tab(text: 'Delivered'),
-                  ],
-                ),
-              ),
-            ),
-          ),
           body: ordersAsync.when(
             data: (orders) {
               final mappedOrders = orders.map((data) {
                 return OrderModel.fromMap(data, data['id'] ?? '');
               }).toList();
 
-              return TabBarView(
-                children: _groups.map((group) {
-                  final filtered = group.label == 'All'
-                      ? mappedOrders
-                      : mappedOrders
-                          .where((order) => group.statuses.contains(order.status))
-                          .toList();
+              return Column(
+                children: [
+                  Container(
+                    alignment: Alignment.centerLeft,
+                    child: const TabBar(
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.start,
+                      labelPadding: EdgeInsets.symmetric(horizontal: 16),
+                      dividerColor: Colors.transparent,
+                      indicatorColor: AppColors.deepBlue,
+                      labelColor: AppColors.deepBlue,
+                      unselectedLabelColor: AppColors.grey,
+                      tabs: [
+                        Tab(text: 'All'),
+                        Tab(text: 'Placed'),
+                        Tab(text: 'Packed'),
+                        Tab(text: 'Shipped'),
+                        Tab(text: 'Delivered'),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      children: _groups.map((group) {
+                        final filtered = group.label == 'All'
+                            ? mappedOrders
+                            : mappedOrders
+                                .where((order) => group.statuses.contains(order.status))
+                                .toList();
 
-                  if (filtered.isEmpty) {
-                    return EmptyState(
-                      icon: Icons.receipt_long_outlined,
-                      title: 'No ${group.label.toLowerCase()} orders',
-                      subtitle: 'Orders in this stage will appear here.',
-                    );
-                  }
+                        if (filtered.isEmpty) {
+                          return EmptyState(
+                            icon: Icons.receipt_long_outlined,
+                            title: 'No ${group.label.toLowerCase()} orders',
+                            subtitle: 'Orders in this stage will appear here.',
+                          );
+                        }
 
-                  return ListView.separated(
-                    padding: const EdgeInsets.all(20),
-                    itemCount: filtered.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 16),
-                    itemBuilder: (context, index) {
-                      return _OrderCard(order: filtered[index]);
-                    },
-                  );
-                }).toList(),
+                        return ListView.separated(
+                          padding: const EdgeInsets.all(20),
+                          itemCount: filtered.length,
+                          separatorBuilder: (context, index) => const SizedBox(height: 16),
+                          itemBuilder: (context, index) {
+                            return _OrderCard(order: filtered[index]);
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
               );
             },
             loading: () => const LoadingIndicator(),

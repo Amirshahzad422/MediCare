@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../providers/appointments_provider.dart';
+import '../models/appointment_model.dart';
 import '../providers/auth_provider.dart';
 import '../components/appointment_card.dart';
 import '../styles/colors.dart';
@@ -64,27 +65,30 @@ class AppointmentsScreen extends ConsumerWidget {
     final appointmentsAsync = ref.watch(appointmentsStreamProvider);
     final isDoctor = ref.watch(userProfileProvider).value?.role == 2;
 
+    int initialTabIndex = 0;
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map<String, dynamic> && args['appointmentsTabIndex'] != null) {
+      initialTabIndex = args['appointmentsTabIndex'] as int;
+    }
+
     return DefaultTabController(
+      initialIndex: initialTabIndex,
       length: _groups.length,
       child: Scaffold(
         backgroundColor: AppColors.white,
         body: appointmentsAsync.when(
           data: (appointments) {
-            print('--- AppointmentsScreen build: received ${appointments.length} appointments');
-            for (var app in appointments) {
-              print('--- App ID: ${app['id']}, patientId: ${app['patientId']}, doctorId: ${app['doctorId']}, status: ${app['status']}');
-            }
-            final grouped = <String, List<Map<String, dynamic>>>{};
+            final grouped = <String, List<AppointmentModel>>{};
             for (final group in _groups) {
               final groupKey = group.label;
               grouped[groupKey] = appointments
                   .where((app) {
-                final status = AppointmentsScreen.parseStatus(app['status']);
+                final status = AppointmentsScreen.parseStatus(app.status);
                 if (group.label == 'All') return true;
                 return group.statuses.contains(status);
               })
                   .toList()
-                ..sort((a, b) => (a['date'] ?? '').compareTo(b['date'] ?? ''));
+                ..sort((a, b) => a.date.compareTo(b.date));
             }
 
             return Column(
@@ -92,24 +96,25 @@ class AppointmentsScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.only(top: 12),
                   color: AppColors.white,
-                  alignment: Alignment.centerLeft,
-                  child: TabBar(
-                    isScrollable: true,
-                    tabAlignment: TabAlignment.start,
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 16),
-                    dividerColor: Colors.transparent,
-                    labelColor: AppColors.deepBlue,
-                    unselectedLabelColor: AppColors.lightBlue,
-                    indicatorColor: AppColors.deepBlue,
-                    labelStyle: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.bold),
-                    unselectedLabelStyle: AppTypography.bodyMedium,
-                    tabs: _groups.map((group) {
-                      final count = grouped[group.label]?.length ?? 0;
-                      final label = count > 0
-                          ? '${group.label} ($count)'
-                          : group.label;
-                      return Tab(text: label);
-                    }).toList(),
+                  child: Center(
+                    child: TabBar(
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.center,
+                      labelPadding: const EdgeInsets.symmetric(horizontal: 16),
+                      dividerColor: Colors.transparent,
+                      labelColor: AppColors.deepBlue,
+                      unselectedLabelColor: AppColors.lightBlue,
+                      indicatorColor: AppColors.deepBlue,
+                      labelStyle: AppTypography.bodyLarge.copyWith(fontWeight: FontWeight.bold),
+                      unselectedLabelStyle: AppTypography.bodyMedium,
+                      tabs: _groups.map((group) {
+                        final count = grouped[group.label]?.length ?? 0;
+                        final label = count > 0
+                            ? '${group.label} ($count)'
+                            : group.label;
+                        return Tab(text: label);
+                      }).toList(),
+                    ),
                   ),
                 ),
                 Expanded(
@@ -144,7 +149,7 @@ class AppointmentsScreen extends ConsumerWidget {
 
   Widget _buildList(
       BuildContext context,
-      List<Map<String, dynamic>> list, {
+      List<AppointmentModel> list, {
         required String groupLabel,
         required bool isDoctor,
       }) {
@@ -188,7 +193,7 @@ class AppointmentsScreen extends ConsumerWidget {
       separatorBuilder: (context, index) => const SizedBox(height: 16),
       itemBuilder: (ctx, i) {
         final app = list[i];
-        final status = AppointmentsScreen.parseStatus(app['status']);
+        final status = AppointmentsScreen.parseStatus(app.status);
         return AppointmentCard(
           app: app,
           status: status,

@@ -20,6 +20,8 @@ class PatientHomeScreen extends ConsumerStatefulWidget {
 class _PatientHomeScreenState extends ConsumerState<PatientHomeScreen> {
   final _searchController = TextEditingController();
   final PageController _bannerController = PageController();
+  final _scrollController = ScrollController();
+  final _resultsKey = GlobalKey();
   Timer? _bannerTimer;
   int _bannerIndex = 0;
   String _selectedCategory = 'All';
@@ -81,6 +83,7 @@ class _PatientHomeScreenState extends ConsumerState<PatientHomeScreen> {
     _bannerTimer?.cancel();
     _bannerController.dispose();
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -118,10 +121,12 @@ class _PatientHomeScreenState extends ConsumerState<PatientHomeScreen> {
                     child: CircleAvatar(
                       radius: 24,
                       backgroundColor: AppColors.iceBlue,
-                      child: const Icon(
-                        Icons.person,
-                        color: AppColors.deepBlue,
-                      ),
+                      backgroundImage: profile.value?.photo != null && profile.value!.photo.isNotEmpty
+                          ? NetworkImage(profile.value!.photo)
+                          : null,
+                      child: profile.value?.photo == null || profile.value!.photo.isEmpty
+                          ? const Icon(Icons.person, color: AppColors.deepBlue)
+                          : null,
                     ),
                   ),
                 ],
@@ -129,17 +134,44 @@ class _PatientHomeScreenState extends ConsumerState<PatientHomeScreen> {
             ),
             Expanded(
               child: ListView(
+                controller: _scrollController,
                 padding: const EdgeInsets.only(bottom: 32),
                 children: [
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                    child: CustomSearchBar(
-                      controller: _searchController,
-                      onChanged: (value) {
-                        setState(() {
-                          _searchQuery = value.toLowerCase();
-                        });
-                      },
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: CustomSearchBar(
+                            showSearchIcon: false,
+                            controller: _searchController,
+                            onChanged: (value) {
+                              setState(() {
+                                _searchQuery = value.toLowerCase();
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.deepBlue,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.search, color: AppColors.white),
+                            onPressed: () {
+                              if (_searchController.text.isNotEmpty && _resultsKey.currentContext != null) {
+                                Scrollable.ensureVisible(
+                                  _resultsKey.currentContext!,
+                                  duration: const Duration(milliseconds: 500),
+                                  curve: Curves.easeInOut,
+                                );
+                              }
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -184,6 +216,7 @@ class _PatientHomeScreenState extends ConsumerState<PatientHomeScreen> {
                   ),
                   const SizedBox(height: 20),
                   Padding(
+                    key: _resultsKey,
                     padding: const EdgeInsets.symmetric(horizontal: 20.0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -192,7 +225,7 @@ class _PatientHomeScreenState extends ConsumerState<PatientHomeScreen> {
                           'Featured Doctors',
                           style: AppTypography.titleLarge.copyWith(fontSize: 20),
                         ),
-                        _seeAllButton(),
+                       
                       ],
                     ),
                   ),
@@ -436,54 +469,60 @@ class _PatientHomeScreenState extends ConsumerState<PatientHomeScreen> {
             style: AppTypography.titleLarge.copyWith(fontSize: 20),
           ),
           const SizedBox(height: 14),
-          Row(
-            children: List.generate(3, (index) {
-              final item = _whyUs[index];
-              return Expanded(
-                child: Container(
-                  margin: EdgeInsets.only(right: index < 2 ? 10 : 0),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.iceBlue, width: 1.5),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: List.generate(5, (index) {
+                if (index.isOdd) return const SizedBox(width: 10);
+                
+                final itemIndex = index ~/ 2;
+                final item = _whyUs[itemIndex];
+                
+                return Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.iceBlue, width: 1.5),
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: AppColors.iceBlue.withValues(alpha: 0.5),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            _whyUsIcon(item.$3),
+                            color: AppColors.deepBlue,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          item.$1,
+                          textAlign: TextAlign.center,
+                          style: AppTypography.bodyMedium.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: AppColors.darkNavy,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          item.$2,
+                          textAlign: TextAlign.center,
+                          style: AppTypography.bodyMedium.copyWith(fontSize: 9),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: AppColors.iceBlue.withValues(alpha: 0.5),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          _whyUsIcon(item.$3),
-                          color: AppColors.deepBlue,
-                          size: 22,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        item.$1,
-                        textAlign: TextAlign.center,
-                        style: AppTypography.bodyMedium.copyWith(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          color: AppColors.darkNavy,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        item.$2,
-                        textAlign: TextAlign.center,
-                        style: AppTypography.bodyMedium.copyWith(fontSize: 9),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
+                );
+              }),
+            ),
           ),
         ],
       ),

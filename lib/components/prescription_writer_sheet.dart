@@ -42,6 +42,7 @@ class _PrescriptionWriterSheetState extends ConsumerState<PrescriptionWriterShee
   })> _medRows = [];
 
   bool _isSaving = false;
+  late final Stream<QuerySnapshot> _appointmentsStream;
 
   bool get _isFormValid {
     final diagnosis = _diagnosisController.text.trim();
@@ -56,7 +57,11 @@ class _PrescriptionWriterSheetState extends ConsumerState<PrescriptionWriterShee
     super.initState();
     _selectedPatientId = widget.prefilledPatientId;
     _selectedPatientName = widget.prefilledPatientName;
-    _addMedicineRow(); // start with one empty row
+    _appointmentsStream = FirebaseFirestore.instance
+        .collection('appointments')
+        .where('doctorId', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
+        .snapshots();
+    _addMedicineRow(); 
   }
 
   @override
@@ -203,10 +208,7 @@ class _PrescriptionWriterSheetState extends ConsumerState<PrescriptionWriterShee
                     )
                   else
                     StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('appointments')
-                          .where('doctorId', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
-                          .snapshots(),
+                      stream: _appointmentsStream,
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) {
                           return const Center(child: LinearProgressIndicator());
@@ -261,29 +263,26 @@ class _PrescriptionWriterSheetState extends ConsumerState<PrescriptionWriterShee
                           }
                         }
 
-                        return SizedBox(
-                          width: 250,
-                          child: DropdownButtonFormField<String>(
-                            value: _selectedPatientId,
-                            isExpanded: true,
-                            hint: Text('Choose a patient...',
-                                style: AppTypography.bodyMedium.copyWith(fontSize: 13)),
-                            decoration: _inputDecoration('Select patient',
-                                Icons.person_outline),
-                            items: completedPatients.entries.map((entry) {
-                              return DropdownMenuItem<String>(
-                                value: entry.key,
-                                child: Text(entry.value,
-                                    style: AppTypography.bodyMedium.copyWith(fontSize: 13)),
-                              );
-                            }).toList(),
-                            onChanged: (val) {
-                              setState(() {
-                                _selectedPatientId = val;
-                                _selectedPatientName = completedPatients[val];
-                              });
-                            },
-                          ),
+                        return DropdownButtonFormField<String>(
+                          value: _selectedPatientId,
+                          isExpanded: true,
+                          hint: Text('Choose a patient...',
+                              style: AppTypography.bodyMedium.copyWith(fontSize: 13)),
+                          decoration: _inputDecoration('Select patient',
+                              Icons.person_outline),
+                          items: completedPatients.entries.map((entry) {
+                            return DropdownMenuItem<String>(
+                              value: entry.key,
+                              child: Text(entry.value,
+                                  style: AppTypography.bodyMedium.copyWith(fontSize: 13)),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            setState(() {
+                              _selectedPatientId = val;
+                              _selectedPatientName = completedPatients[val];
+                            });
+                          },
                         );
                       },
                     ),

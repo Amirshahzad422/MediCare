@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
 import '../styles/colors.dart';
@@ -73,19 +72,28 @@ class AppDrawer extends ConsumerWidget {
               child: ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
-                  if (!isDoctor) _tile(context, Icons.home_outlined, 'Home', '/', ref),
+                  if (!isDoctor) _tile(context, Icons.home_outlined, 'Home', '/dashboard', ref,
+                      onTapOverride: () => Navigator.pushReplacementNamed(context, '/dashboard', arguments: {'initialIndex': 0})),
                   if (!isDoctor) _tile(context, Icons.local_hospital_outlined, 'Doctors', '/doctors', ref),
-                  if (isDoctor) _tile(context, Icons.space_dashboard_outlined, 'Dashboard', '/doctor-dashboard', ref),
-                  if (isDoctor) _tile(context, Icons.calendar_month_outlined, 'My Schedule', '', ref,
+                  if (isDoctor) _tile(context, Icons.space_dashboard_outlined, 'Dashboard', '/doctor-dashboard', ref,
+                      onTapOverride: () => Navigator.pushReplacementNamed(context, '/doctor-dashboard', arguments: {'initialIndex': 0})),
+                  if (isDoctor) _tile(context, Icons.calendar_month_outlined, 'Schedule', '', ref,
                       onTapOverride: () => _openScheduleModal(context, doctorName, ref)),
-                  if (isDoctor) _tile(context, Icons.folder_shared_outlined, 'Patient Records', '', ref,
-                      onTapOverride: () => _openRecordsModal(context, doctorName)),
-                  _tile(context, Icons.calendar_month_outlined, 'Appointments', '/appointments', ref),
-                  if (!isDoctor) _tile(context, Icons.local_pharmacy_outlined, 'Pharmacy', '/pharmacy', ref),
-                  if (!isDoctor) _tile(context, Icons.description_outlined, 'Prescriptions', '/prescriptions', ref),
+                  if (isDoctor) _tile(context, Icons.folder_shared_outlined, 'Patient Records', '/doctor-records', ref),
+                  _tile(context, Icons.calendar_month_outlined, 'Appointments', '/appointments', ref,
+                      onTapOverride: () {
+                        Navigator.pushReplacementNamed(context, isDoctor ? '/doctor-dashboard' : '/dashboard', arguments: {'initialIndex': 1});
+                      }),
+                  if (!isDoctor) _tile(context, Icons.local_pharmacy_outlined, 'Pharmacy', '/pharmacy', ref,
+                      onTapOverride: () => Navigator.pushReplacementNamed(context, '/dashboard', arguments: {'initialIndex': 2})),
+                  if (!isDoctor) _tile(context, Icons.description_outlined, 'Prescriptions', '/prescriptions', ref,
+                      onTapOverride: () => Navigator.pushReplacementNamed(context, '/dashboard', arguments: {'initialIndex': 3})),
                   if (!isDoctor) _tile(context, Icons.receipt_long_outlined, 'Orders', '/orders', ref),
-                  _tile(context, Icons.rate_review_outlined, 'Reviews', '/reviews', ref),
-                  _tile(context, Icons.person_outline, 'Profile', '/profile', ref),
+                  if (isDoctor) _tile(context, Icons.rate_review_outlined, 'Reviews', '/reviews', ref),
+                  _tile(context, Icons.person_outline, 'Profile', '/profile', ref,
+                      onTapOverride: () {
+                        Navigator.pushReplacementNamed(context, isDoctor ? '/doctor-dashboard' : '/dashboard', arguments: {'initialIndex': isDoctor ? 2 : 4});
+                      }),
                   _tile(context, Icons.notifications_outlined, 'Notifications', '/notifications', ref),
                   const Divider(height: 24, color: AppColors.iceBlue),
                   _tile(context, Icons.info_outline, 'About Us', '/about', ref),
@@ -112,11 +120,12 @@ class AppDrawer extends ConsumerWidget {
                 )
                     : OutlinedButton(
                   onPressed: () async {
-                    await FirebaseAuth.instance.signOut();
+                    await ref.read(authServiceProvider).logout();
                     if (!context.mounted) return;
-                    Navigator.pop(context);
-                    Navigator.pushNamedAndRemoveUntil(
-                        context, '/login', (route) => false);
+                    final routeName = ModalRoute.of(context)?.settings.name;
+                    if (routeName != '/login') {
+                      Navigator.pushNamedAndRemoveUntil(context, '/login', (r) => false);
+                    }
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.error,

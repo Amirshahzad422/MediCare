@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
 
-/// Reusable testimonial card used across the Home & supporting screens.
 class TestimonialCard extends StatelessWidget {
   final String name;
   final String role;
@@ -98,7 +97,6 @@ class TestimonialCard extends StatelessWidget {
   }
 }
 
-/// Horizontal carousel of testimonials with normalized scroll bar.
 class TestimonialsCarousel extends StatelessWidget {
   final List<TestimonialCard> testimonials;
   final double height;

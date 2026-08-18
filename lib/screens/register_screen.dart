@@ -41,7 +41,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       final email = _emailController.text.trim();
       final phone = _phoneController.text.trim();
 
-      // Pre-flight checks before going to OTP screen
       if (await authService.isEmailRegistered(email)) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -89,6 +88,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         bottom: false,
         child: Column(
           children: [
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.asset(
+                'assets/images/logo.png',
+                height: 60,
+                fit: BoxFit.contain,
+              ),
+            ),
             const SizedBox(height: 20),
             Expanded(
               child: Container(
@@ -192,7 +200,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         TextFormField(
                           controller: _phoneController,
                           style: AppTypography.bodyLarge,
-                          keyboardType: TextInputType.text, // Changed to text to guarantee + symbol access on all emulator keyboards
+                          keyboardType: TextInputType.text, 
                           decoration: InputDecoration(
                             hintText: '+1 555 123 4567',
                             hintStyle: AppTypography.bodyMedium.copyWith(color: Colors.black38),

@@ -22,7 +22,7 @@ class TodayAppointmentsList extends ConsumerWidget {
       data: (appointments) {
         final now = DateTime.now();
         final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-        final today = appointments.where((app) => app['date'] == todayStr).toList();
+        final today = appointments.where((app) => app.date == todayStr).toList();
 
         if (today.isEmpty) {
           return const EmptyState(

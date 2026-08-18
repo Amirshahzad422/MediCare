@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
 
-/// Reusable designed empty state.
 class EmptyState extends StatelessWidget {
   final IconData icon;
   final String title;

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
 
-/// Horizontal 7-day date picker used by the Booking flow & appointments.
 class DatePickerRow extends StatelessWidget {
   final DateTime selectedDate;
   final ValueChanged<DateTime> onSelect;
@@ -76,7 +75,6 @@ class DatePickerRow extends StatelessWidget {
   }
 }
 
-/// Time-slot grid that marks unavailable & selected slots.
 class SlotGrid extends StatelessWidget {
   final List<String> slots;
   final String? selectedSlot;

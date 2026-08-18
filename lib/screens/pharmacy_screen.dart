@@ -77,7 +77,6 @@ class _PharmacyScreenState extends ConsumerState<PharmacyScreen> {
         );
       }
     } catch (e) {
-      debugPrint('Error adding prescribed medicines to cart: $e');
     }
   }
 
@@ -88,41 +87,6 @@ class _PharmacyScreenState extends ConsumerState<PharmacyScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.white,
-      appBar: AppBar(
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: Text('Pharmacy', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
-        centerTitle: true,
-        actions: [
-          Stack(
-            alignment: Alignment.topRight,
-            children: [
-
-              if (totalItems > 0)
-                Positioned(
-                  right: 6,
-                  top: 6,
-                  child: Container(
-                    width: 16,
-                    height: 16,
-                    decoration: const BoxDecoration(
-                      color: AppColors.error,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '$totalItems',
-                        style: AppTypography.bodyMedium
-                            .copyWith(color: AppColors.white, fontSize: 9),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
       body: Column(
 
         children: [

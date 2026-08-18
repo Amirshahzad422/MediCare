@@ -16,21 +16,20 @@ class DashboardStatsCard extends ConsumerWidget {
     return appointmentsAsync.when(
       data: (appointments) {
         final completed = appointments.where((app) {
-          final raw = app['status'];
-          final status = raw is int ? raw : (int.tryParse(raw?.toString() ?? '') ?? -1);
+          final status = app.status;
           return status == 2;
         }).toList();
-        final totalEarnings = completed.fold<double>(0, (sum, app) => sum + ((app['amount'] ?? 0) as num).toDouble());
+        final totalEarnings = completed.fold<double>(0, (sum, app) => sum + app.amount);
 
         final now = DateTime.now();
         final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-        final todayCount = appointments.where((app) => app['date'] == todayStr).length;
+        final todayCount = appointments.where((app) => app.date == todayStr).length;
 
         return Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [AppColors.deepBlue, AppColors.darkNavy],
+              colors: [AppColors.darkNavy, AppColors.mediumBlue],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),

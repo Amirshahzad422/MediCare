@@ -6,6 +6,7 @@ import '../layouts/responsive_layout.dart';
 import '../providers/cart_provider.dart';
 import '../providers/orders_provider.dart';
 import '../providers/profile_provider.dart';
+import '../services/payment_service.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
 
@@ -18,7 +19,6 @@ class CheckoutScreen extends ConsumerStatefulWidget {
 
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _addressController = TextEditingController();
-  String _paymentMethod = 'Card';
   bool _isProcessing = false;
   bool _addressInitialized = false;
 
@@ -57,8 +57,28 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     setState(() => _isProcessing = true);
 
-    // Simulate payment processing
-    await Future.delayed(const Duration(seconds: 1));
+    final paymentSuccess = await PaymentService().processPayment(total);
+
+    if (!paymentSuccess) {
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppColors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Payment Failed'),
+          content: const Text('Your payment was declined or cancelled. Please try again.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
 
     final orderService = ref.read(orderServiceProvider);
     final order = await orderService.placeOrder(
@@ -67,7 +87,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       discount: discount,
       total: total,
       address: address,
-      paymentMethod: _paymentMethod,
+      paymentMethod: 'Stripe/Card',
     );
 
     if (!mounted) return;
@@ -98,14 +118,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(ctx); // Close dialog
+                Navigator.pop(ctx); 
                 Navigator.pushNamedAndRemoveUntil(
                   context,
                   '/dashboard',
                   (route) => false,
-                  arguments: {'initialIndex': 1}, // Navigate to Appointments screen or main flow
+                  arguments: {'initialIndex': 1}, 
                 );
-                // Then push /orders route over dashboard
                 Navigator.pushNamed(context, '/orders');
               },
               child: Text(
@@ -176,16 +195,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       showFooter: false,
       child: Scaffold(
         backgroundColor: AppColors.white,
-        appBar: AppBar(
-          backgroundColor: AppColors.white,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.deepBlue),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Text('Checkout', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
-          centerTitle: true,
-        ),
         body: _isProcessing
             ? Center(
                 child: Column(
@@ -205,7 +214,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Delivery Address
                     Text('Delivery Address', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
                     const SizedBox(height: 12),
                     TextField(
@@ -231,19 +239,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Payment Method
-                    Text('Payment Method', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        _methodTile('Card', Icons.credit_card),
-                        const SizedBox(width: 12),
-                        _methodTile('Wallet', Icons.account_balance_wallet),
-                      ],
-                    ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 24),
 
-                    // Order Summary Card
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -312,39 +309,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ],
                 ),
               ),
-      ),
-    );
-  }
-
-  Widget _methodTile(String label, IconData icon) {
-    final selected = _paymentMethod == label;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _paymentMethod = label),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.deepBlue : AppColors.iceBlue.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: selected ? AppColors.deepBlue : AppColors.iceBlue,
-              width: 1.5,
-            ),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: selected ? AppColors.white : AppColors.deepBlue),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: AppTypography.bodyMedium.copyWith(
-                  color: selected ? AppColors.white : AppColors.deepBlue,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

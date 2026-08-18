@@ -22,20 +22,14 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
     final args = ModalRoute.of(context)?.settings.arguments;
 
     if (args == null || args is! MedicineModel) {
-      return Scaffold(
-        backgroundColor: AppColors.white,
-        appBar: AppBar(
+      return const ResponsiveLayout(
+        currentRoute: '/medicine-detail',
+        showFooter: false,
+        child: Scaffold(
           backgroundColor: AppColors.white,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.darkNavy),
-            onPressed: () => Navigator.pop(context),
+          body: Center(
+            child: Text('No medicine data found.'),
           ),
-          title: Text('Product Details', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
-          centerTitle: true,
-        ),
-        body: const Center(
-          child: Text('No medicine data found.'),
         ),
       );
     }
@@ -59,50 +53,50 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
       showFooter: false,
       child: Scaffold(
         backgroundColor: AppColors.white,
-        appBar: AppBar(
-          backgroundColor: AppColors.white,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.deepBlue),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Text('Medicine Details', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
-          centerTitle: true,
-          actions: [
-            IconButton(
-              icon: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  const Icon(Icons.shopping_cart_outlined, color: AppColors.deepBlue),
-                  if (cart.isNotEmpty)
-                    Positioned(
-                      right: -6,
-                      top: -6,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: AppColors.error,
-                          shape: BoxShape.circle,
-                        ),
-                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                        child: Text(
-                          '${cart.length}',
-                          textAlign: TextAlign.center,
-                          style: AppTypography.bodyMedium.copyWith(
-                            fontSize: 8,
-                            color: AppColors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              onPressed: () => Navigator.pushNamed(context, '/cart'),
-            ),
-            const SizedBox(width: 8),
-          ],
-        ),
+        // appBar: AppBar(
+        //   backgroundColor: AppColors.white,
+        //   elevation: 0,
+        //   leading: IconButton(
+        //     icon: const Icon(Icons.arrow_back, color: AppColors.deepBlue),
+        //     onPressed: () => Navigator.pop(context),
+        //   ),
+        //   // title: Text('Medicine Details', style: AppTypography.titleLarge.copyWith(fontSize: 20)),
+        //   // centerTitle: true,
+        //   actions: [
+        //     IconButton(
+        //       icon: Stack(
+        //         clipBehavior: Clip.none,
+        //         children: [
+        //           const Icon(Icons.shopping_cart_outlined, color: AppColors.deepBlue),
+        //           if (cart.isNotEmpty)
+        //             Positioned(
+        //               right: -6,
+        //               top: -6,
+        //               child: Container(
+        //                 padding: const EdgeInsets.all(4),
+        //                 decoration: const BoxDecoration(
+        //                   color: AppColors.error,
+        //                   shape: BoxShape.circle,
+        //                 ),
+        //                 constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+        //                 child: Text(
+        //                   '${cart.length}',
+        //                   textAlign: TextAlign.center,
+        //                   style: AppTypography.bodyMedium.copyWith(
+        //                     fontSize: 8,
+        //                     color: AppColors.white,
+        //                     fontWeight: FontWeight.bold,
+        //                   ),
+        //                 ),
+        //               ),
+        //             ),
+        //         ],
+        //       ),
+        //       onPressed: () => Navigator.pushNamed(context, '/cart'),
+        //     ),
+        //     const SizedBox(width: 8),
+        //   ],
+        // ),
         body: Column(
           children: [
             Expanded(
@@ -111,7 +105,6 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // --- Image Section ---
                     Center(
                       child: Container(
                         width: 180,
@@ -150,8 +143,7 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // --- Badge Row ---
-                    Row(
+                      Row(
                       children: [
                         if (medicine.requiresPrescription)
                           Container(
@@ -198,7 +190,6 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // --- Title and Brand ---
                     Text(
                       medicine.name,
                       style: AppTypography.titleLarge.copyWith(fontSize: 22, color: AppColors.darkNavy),
@@ -224,7 +215,6 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // --- Description Section ---
                     Text(
                       'Description & Indications',
                       style: AppTypography.titleLarge.copyWith(fontSize: 16, color: AppColors.deepBlue),
@@ -257,7 +247,6 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
               ),
             ),
 
-            // --- Sticky Bottom Action Bar ---
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: BoxDecoration(
@@ -276,7 +265,6 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
               child: SafeArea(
                 child: Row(
                   children: [
-                    // Price display
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
@@ -296,7 +284,6 @@ class _MedicineDetailScreenState extends ConsumerState<MedicineDetailScreen> {
                     ),
                     const Spacer(),
 
-                    // Quantity selectors + Add button
                     if (medicine.stock > 0) ...[
                       Container(
                         height: 42,

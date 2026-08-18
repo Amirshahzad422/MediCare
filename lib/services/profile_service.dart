@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/doctor_model.dart';
+import '../models/patient_model.dart';
+import '../models/user_model.dart';
 
 class ProfileService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -18,22 +20,23 @@ class ProfileService {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return false;
 
-    final userUpdates = <String, dynamic>{
-      'name': name,
-      'email': email,
-      'phone': phone,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
+    final userUpdates = UserModel(
+      uid: user.uid,
+      name: name,
+      email: email,
+      phone: phone,
+      role: 1, // Patient
+      photo: photo,
+      isOnboardingComplete: isOnboardingComplete,
+    ).toMap();
 
-    final patientData = <String, dynamic>{
-      'id': user.uid,
-      'address': address,
-      'photo': photo,
-      'gender': gender,
-      'age': age,
-      'isOnboardingComplete': isOnboardingComplete,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
+    final patientData = PatientModel(
+      id: user.uid,
+      name: name,
+      address: address,
+      gender: gender,
+      age: age,
+    ).toMap();
 
     try {
       await _db.collection('users').doc(user.uid).set(userUpdates, SetOptions(merge: true));
@@ -44,7 +47,6 @@ class ProfileService {
       }
       try {
         if (user.email != email && email.isNotEmpty) {
-          // Attempt direct email update (might throw if requires recent login)
           await user.verifyBeforeUpdateEmail(email);
         }
       } catch (e) {}
@@ -67,50 +69,49 @@ class ProfileService {
     List<String> availableDays = const [],
     String qualifications = '',
     String photo = '',
+    String phone = '',
     bool availableToday = true,
-    bool isOnboardingComplete = true,
     int businessStartHour = 8,
     int businessEndHour = 18,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return false;
 
-    final doctorData = <String, dynamic>{
-      'id': user.uid,
-      'name': name,
-      'email': email,
-      'specialty': specialty,
-      'fee': fee,
-      'city': city,
-      'experience': experience,
-      'bio': bio,
-      'slots': slots,
-      'consultationDuration': consultationDuration,
-      'availableDays': availableDays,
-      'qualifications': qualifications,
-      'photo': photo,
-      'availableToday': availableToday,
-      'isOnboardingComplete': isOnboardingComplete,
-      'businessStartHour': businessStartHour,
-      'businessEndHour': businessEndHour,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
+    final doctorData = DoctorModel(
+      id: user.uid,
+      name: name,
+      specialty: specialty,
+      fee: fee,
+      city: city,
+      experience: experience,
+      bio: bio,
+      slots: slots,
+      consultationDuration: consultationDuration,
+      availableDays: availableDays,
+      qualifications: qualifications,
+      availableToday: availableToday,
+      businessStartHour: businessStartHour,
+      businessEndHour: businessEndHour,
+      rating: 5.0, // Default rating
+      bookedCount: 0,
+      reviews: const [],
+      gender: 'Any',
+    ).toMap();
 
     try {
-      // 1. Save full doctor profile to 'doctors' collection
       await _db.collection('doctors').doc(user.uid).set(doctorData, SetOptions(merge: true));
 
-      // 2. Update shared fields in 'users' collection
-      final userUpdates = <String, dynamic>{
-        'name': name,
-        'email': email,
-        'photo': photo,
-        'isOnboardingComplete': isOnboardingComplete,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
+      final userUpdates = UserModel(
+        uid: user.uid,
+        name: name,
+        email: email,
+        phone: phone,
+        role: 2, // Doctor
+        photo: photo,
+        isOnboardingComplete: true,
+      ).toMap();
       await _db.collection('users').doc(user.uid).set(userUpdates, SetOptions(merge: true));
 
-      // 3. Update Firebase Auth display name and photo
       await user.updateDisplayName(name);
       if (photo.isNotEmpty) {
         await user.updatePhotoURL(photo);
@@ -137,16 +138,19 @@ class ProfileService {
       final data = doc.data()!;
       if (data['role'] != 2) return;
 
-      final List<String> availableDays = (data['availableDays'] as List?)?.cast<String>() ?? [];
+      final doctorDoc = await _db.collection('doctors').doc(user.uid).get();
+      if (!doctorDoc.exists) return;
+      
+      final doctorData = doctorDoc.data()!;
+      final List<String> availableDays = (doctorData['availableDays'] as List?)?.cast<String>() ?? [];
       if (availableDays.isEmpty) return;
 
       final List<String> allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
       final String todayName = allDays[DateTime.now().weekday - 1];
       final bool shouldBeAvailable = availableDays.contains(todayName);
-      final bool currentStatus = data['availableToday'] ?? false;
+      final bool currentStatus = doctorData['availableToday'] ?? false;
 
       if (shouldBeAvailable != currentStatus) {
-        await _db.collection('users').doc(user.uid).update({'availableToday': shouldBeAvailable});
         await _db.collection('doctors').doc(user.uid).update({'availableToday': shouldBeAvailable});
       }
     } catch (e) {}
@@ -206,7 +210,6 @@ class ProfileService {
       if (doctorsSnapshot.docs.isNotEmpty) {
         final docId = doctorsSnapshot.docs.first.id;
         await _db.collection('doctors').doc(docId).update({'availableToday': availableToday});
-        await _db.collection('users').doc(docId).update({'availableToday': availableToday});
         return true;
       }
       return false;
@@ -215,26 +218,5 @@ class ProfileService {
     }
   }
 
-  static DoctorModel? doctorFromUserDoc(String uid, Map<String, dynamic>? doc) {
-    if (doc == null) return null;
-    return DoctorModel(
-      id: uid,
-      name: doc['name'] ?? '',
-      specialty: doc['specialty'] ?? 'General Physician',
-      city: doc['city'] ?? '',
-      fee: (doc['fee'] ?? 0).toDouble(),
-      experience: doc['experience'] is int ? doc['experience'] : (int.tryParse(doc['experience']?.toString() ?? '') ?? 5),
-      rating: (doc['rating'] ?? 5.0).toDouble(),
-      bio: doc['bio'] ?? '',
-      photo: doc['photo'] ?? 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=400',
-      slots: (doc['slots'] as List?)?.map((e) => e.toString()).toList() ?? [],
-      consultationDuration: (doc['consultationDuration'] ?? 30) as int,
-      qualifications: doc['qualifications'] ?? doc['credentials'] ?? '',
-      availableToday: doc['availableToday'] ?? false,
-      availableDays: (doc['availableDays'] as List?)?.map((e) => e.toString()).toList() ?? [],
-      isOnboardingComplete: doc['isOnboardingComplete'] ?? false,
-      businessStartHour: (doc['businessStartHour'] ?? 8) as int,
-      businessEndHour: (doc['businessEndHour'] ?? 18) as int,
-    );
-  }
+
 }

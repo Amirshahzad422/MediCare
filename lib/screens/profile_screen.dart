@@ -39,7 +39,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _isEditing = false;
   String _photoUrl = '';
   
-  // Patient fields
   String _gender = '';
   final _ageController = TextEditingController();
 
@@ -226,6 +225,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _emailController.text = profile.email;
       _phoneController.text = userDoc['phone'] ?? '';
       _addressController.text = userDoc['address'] ?? '';
+      
       _photoUrl = userDoc['photo'] ?? '';
       
       if (!isDoctor) {
@@ -396,7 +396,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               _firstErrorNode = null;
             });
 
-              // Unfocus all fields
               _nameFocus.unfocus();
               _emailFocus.unfocus();
               _phoneFocus.unfocus();
@@ -589,8 +588,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               readOnly: !_isEditing,
               maxLines: 3,
             ),
-            const SizedBox(height: 8),
-            _buildAvailabilityToggle(),
+
           ],
         ],
       ),
@@ -724,24 +722,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildAvailabilityToggle() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          'Available for consultations today',
-          style: AppTypography.bodyMedium,
-        ),
-        Switch(
-          value: _availableToday,
-          activeThumbColor: AppColors.deepBlue,
-          onChanged: _isEditing
-              ? (v) => setState(() => _availableToday = v)
-              : null,
-        ),
-      ],
-    );
-  }
+
 
   Widget _buildActionButtons(bool isDoctor) {
     return Column(
@@ -946,13 +927,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           experience: int.tryParse(_experienceController.text.trim()) ?? 0,
           qualifications: _credentialsController.text.trim(),
           photo: _photoUrl,
+          phone: _phoneController.text.trim(),
           availableToday: _availableToday,
           slots: _currentSlots,
           availableDays: _currentAvailableDays,
           consultationDuration: _currentDuration,
           businessStartHour: _businessStartHour,
           businessEndHour: _businessEndHour,
-          isOnboardingComplete: true,
         );
 
         success = doctorUpdate;
@@ -1001,16 +982,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _logout() async {
-    await FirebaseAuth.instance.signOut();
-
-    if (!mounted) {
-      return;
-    }
-
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      '/login',
-          (route) => false,
-    );
+    await ref.read(authServiceProvider).logout();
   }
 }

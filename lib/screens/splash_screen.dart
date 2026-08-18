@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../styles/colors.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -37,7 +38,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     if (!mounted) return;
 
     final user = FirebaseAuth.instance.currentUser;
-    Navigator.pushReplacementNamed(context, user != null ? '/dashboard' : '/onboarding');
+    if (user != null) {
+      try {
+        final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        final role = doc.data()?['role'] ?? 1;
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, role == 2 ? '/doctor-dashboard' : '/dashboard');
+      } catch (e) {
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/dashboard');
+      }
+    } else {
+      Navigator.pushReplacementNamed(context, '/onboarding');
+    }
   }
 
   @override
@@ -49,7 +62,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.mediumBlue,
+      backgroundColor: AppColors.white,
       body: Center(
         child: FadeTransition(
           opacity: _fade,
@@ -58,31 +71,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  width: 110,
-                  height: 110,
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(28),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.darkNavy.withValues(alpha: 0.25),
-                        blurRadius: 24,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.medical_services,
-                    size: 56,
-                    color: AppColors.deepBlue,
-                  ),
+                Image.asset(
+                  'assets/images/logo.png',
+                  height: 140,
+                  fit: BoxFit.contain,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 Text(
                   'MediCare',
                   style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                        color: AppColors.white,
+                        color: AppColors.deepBlue,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.5,
                       ),
@@ -91,18 +89,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 Text(
                   'Doctor Consultation & Telemedicine',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.iceBlue,
+                        color: AppColors.deepBlue,
                         fontSize: 14,
                       ),
-                ),
-                const SizedBox(height: 40),
-                const SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: CircularProgressIndicator(
-                    color: AppColors.white,
-                    strokeWidth: 2.5,
-                  ),
                 ),
               ],
             ),

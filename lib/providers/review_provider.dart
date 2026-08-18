@@ -12,14 +12,17 @@ class ReviewService {
 
   Stream<List<ReviewModel>> getReviewsForDoctor(String doctorId) {
     return _firestore
-        .collection('reviews')
-        .where('doctorId', isEqualTo: doctorId)
+        .collection('doctors')
+        .doc(doctorId)
         .snapshots()
         .map((snapshot) {
-      final reviews = snapshot.docs.map((doc) {
-        return ReviewModel.fromMap(doc.data(), doc.id);
+      if (!snapshot.exists) return [];
+      final data = snapshot.data();
+      if (data == null || data['reviews'] == null) return [];
+      final reviewsList = data['reviews'] as List<dynamic>;
+      final reviews = reviewsList.map((e) {
+        return ReviewModel.fromMap(Map<String, dynamic>.from(e), '');
       }).toList();
-      // Sort descending by createdAt (newest first)
       reviews.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return reviews;
     });
@@ -42,7 +45,9 @@ class ReviewService {
       comment: comment,
       createdAt: DateTime.now(),
     );
-    await _firestore.collection('reviews').add(review.toMap());
+    await _firestore.collection('doctors').doc(doctorId).set({
+      'reviews': FieldValue.arrayUnion([review.toMap()])
+    }, SetOptions(merge: true));
   }
 }
 

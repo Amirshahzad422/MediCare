@@ -25,21 +25,85 @@ class RecordsView extends ConsumerWidget {
             final meds = (p['medicines'] as List<dynamic>?) ?? [];
             return Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.iceBlue, width: 1.5)),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.iceBlue, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.darkNavy.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(p['patientName'] ?? 'Patient', style: AppTypography.titleLarge.copyWith(fontSize: 15)),
-                      Text(p['date'] ?? '', style: AppTypography.bodyMedium.copyWith(fontSize: 11)),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.iceBlue.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.person, color: AppColors.deepBlue),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(p['patientName'] ?? 'Patient', style: AppTypography.titleLarge.copyWith(fontSize: 16)),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${p['patientAge'] ?? 'N/A'} yrs • ${p['patientGender'] ?? 'N/A'}',
+                              style: AppTypography.bodyMedium.copyWith(color: AppColors.mediumBlue, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(p['date'] ?? '', style: AppTypography.bodyMedium.copyWith(fontSize: 12, color: AppColors.grey)),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text('${p['diagnosis'] ?? 'Consultation'}', style: AppTypography.bodyLarge.copyWith(fontSize: 13)),
-                  const SizedBox(height: 8),
-                  ...meds.take(3).map((med) => Text('• ${med['name']} (${med['dosage']})', style: AppTypography.bodyMedium.copyWith(fontSize: 12))),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.iceBlue.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Diagnosis: ${p['diagnosis'] ?? 'Consultation'}',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.deepBlue,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  if (meds.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    ...meds.take(3).map((med) => Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.only(top: 2, right: 6),
+                                child: Icon(Icons.medication, size: 14, color: AppColors.mediumBlue),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  '${med['name']} - ${med['dosage']}',
+                                  style: AppTypography.bodyMedium.copyWith(fontSize: 13),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )),
+                  ],
                 ],
               ),
             );

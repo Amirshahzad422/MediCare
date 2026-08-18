@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../components/chat_bubble.dart';
 import '../services/call_service.dart';
+import '../models/appointment_model.dart';
 import '../styles/colors.dart';
 import '../styles/typography.dart';
 
@@ -26,8 +27,8 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   int? _remoteUid;
   bool _localUserJoined = false;
 
-  static const String appId = "22cb40e9ffe04dc7a68abe82308e14f3";
-  static const String tempToken = "007eJxTYMh3dM7eyZnF+f00412RdXkGfG89ojdEeJtHCy5oOu3AnqjAYGSUnGRikGqZlpZqYJKSbJ5oZpGYlGphZGxgkWpokma8e3lDVkMgI8Ob64EsjAwQCOJzMOSmpmQmJxalMjAAAA7EH2g=";
+  String? _agoraAppId;
+  String? _agoraTempToken;
 
   String? _channelName;
 
@@ -66,8 +67,17 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     _myName = user.displayName ?? (user.email ?? 'User');
 
     try {
-      final cid = await _callService.ensureCallRoom(_app);
+      final cid = await _callService.ensureCallRoom(
+          AppointmentModel.fromMap(_app, _app['id']),
+          callIdOverride: _app['callId']
+      );
       await _callService.joinCall(cid, isDoctor: _isDoctor, name: _myName);
+
+      final agoraDoc = await FirebaseFirestore.instance.collection('appSettings').doc('agora').get();
+      if (agoraDoc.exists) {
+        _agoraAppId = agoraDoc.data()?['appId'];
+        _agoraTempToken = agoraDoc.data()?['tempToken'];
+      }
 
       if (!mounted) return;
       setState(() {
@@ -85,7 +95,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         });
         if (_callStatus == CallService.statusEnded) {
           _updateAppointmentStatusToPast();
-          _showEndedByOtherDialog();
+          _showCompletionDialog();
         }
       });
 
@@ -97,7 +107,6 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       await _initAgora();
 
     } catch (e, st) {
-      debugPrint("CALL INIT ERROR: $e\n$st");
       if (!mounted) return;
       setState(() => _joiningCall = false);
     }
@@ -112,39 +121,38 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
 
       if (statuses[Permission.camera] != PermissionStatus.granted ||
           statuses[Permission.microphone] != PermissionStatus.granted) {
-        debugPrint("PERMISSIONS DENIED");
         return;
       }
     }
 
+    if (_agoraAppId == null || _agoraTempToken == null) {
+      return;
+    }
+
     _engine = createAgoraRtcEngine();
-    await _engine!.initialize(const RtcEngineContext(
-      appId: appId,
+    await _engine!.initialize(RtcEngineContext(
+      appId: _agoraAppId,
       channelProfile: ChannelProfileType.channelProfileCommunication,
     ));
 
     _engine!.registerEventHandler(
       RtcEngineEventHandler(
         onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
-          debugPrint("AGORA JOIN SUCCESS: uid ${connection.localUid}");
           setState(() {
             _localUserJoined = true;
           });
         },
         onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
-          debugPrint("AGORA REMOTE USER JOINED: uid $remoteUid");
           setState(() {
             _remoteUid = remoteUid;
           });
         },
         onUserOffline: (RtcConnection connection, int remoteUid, UserOfflineReasonType reason) {
-          debugPrint("AGORA REMOTE USER LEFT: uid $remoteUid");
           setState(() {
             _remoteUid = null;
           });
         },
         onError: (ErrorCodeType err, String msg) {
-          debugPrint("AGORA ERROR: $err - $msg");
         },
       ),
     );
@@ -153,7 +161,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     await _engine!.startPreview();
 
     await _engine!.joinChannel(
-      token: tempToken,
+      token: _agoraTempToken!,
       channelId: _channelName!,
       uid: 0,
       options: const ChannelMediaOptions(
@@ -203,7 +211,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       ),
     );
     if (exitAfter && mounted) {
-      Navigator.pop(context); // Exit call screen
+      Navigator.pop(context); 
     }
   }
 
@@ -228,10 +236,9 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     }
     await _updateAppointmentStatusToPast();
     await _callService.endCall(_callId!, endedBy: _isDoctor ? 'doctor' : 'patient');
-    if (!mounted) return;
-    _showCompletionDialog();
   }
 
+  /*
   void _showEndedByOtherDialog() {
     _callSub?.cancel();
     showDialog(
@@ -279,8 +286,10 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       ),
     );
   }
+  */
 
   void _showCompletionDialog() {
+    _callSub?.cancel();
     final patientName = _app['patientName'] ?? 'Patient';
     final doctorName  = _app['doctorName']  ?? 'Doctor';
 
@@ -385,19 +394,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                   connection: RtcConnection(channelId: _channelName),
                 ),
               )
-                  : (doctorPhoto.isNotEmpty && doctorPhoto.startsWith('http'))
-                      ? Image.network(
-                          doctorPhoto,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            color: AppColors.darkNavy,
-                            child: const Icon(Icons.person, size: 100, color: AppColors.white),
-                          ),
-                        )
-                      : Container(
-                          color: AppColors.darkNavy,
-                          child: const Icon(Icons.person, size: 100, color: AppColors.white),
-                        ),
+                  : Container(color: AppColors.darkNavy),
             ),
             Positioned.fill(
               child: Container(

@@ -183,7 +183,6 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Available Today (interactive)
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -208,7 +207,6 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
               ),
               const SizedBox(height: 32),
 
-              // Available Days
               Text('Available Days', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
               const SizedBox(height: 6),
               Text('Select the days you work.', style: AppTypography.bodyMedium),
@@ -241,7 +239,6 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
               ),
               const SizedBox(height: 32),
 
-              // Business Hours
               Text('Business Hours', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
               const SizedBox(height: 6),
               Text('Set your working hours.', style: AppTypography.bodyMedium),
@@ -307,7 +304,6 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
               ),
               const SizedBox(height: 32),
 
-              // Consultation Duration
               Text('Consultation Duration', style: AppTypography.titleLarge.copyWith(fontSize: 18)),
               const SizedBox(height: 6),
               Text('How long does each session last?', style: AppTypography.bodyMedium),
@@ -341,7 +337,6 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
               ),
               const SizedBox(height: 32),
 
-              // Save Button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
